@@ -8099,7 +8099,7 @@ static void __init virtualkeys_init(void)
             ||(HW_VER_SUB_VB == get_hw_sub_board_id()))
         {
             buf_vkey_size = sprintf(buf_virtualkey,
-        			    __stringify(EV_KEY) ":" __stringify(KEY_HOME)  ":50:930:112:80"
+        			    __stringify(EV_KEY) ":" __stringify(KEY_HOMEPAGE)  ":50:930:112:80"
         		       ":" __stringify(EV_KEY) ":" __stringify(KEY_MENU)   ":180:930:112:80"
         		       ":" __stringify(EV_KEY) ":" __stringify(KEY_BACK)   ":300:930:112:80"
         		       ":" __stringify(EV_KEY) ":" __stringify(KEY_SEARCH) ":430:930:112:80"
@@ -8109,7 +8109,7 @@ static void __init virtualkeys_init(void)
         {
             buf_vkey_size = sprintf(buf_virtualkey,
         			    __stringify(EV_KEY) ":" __stringify(KEY_MENU)  ":50:930:112:80"
-        		       ":" __stringify(EV_KEY) ":" __stringify(KEY_HOME)   ":180:930:112:80"
+        		       ":" __stringify(EV_KEY) ":" __stringify(KEY_HOMEPAGE)   ":180:930:112:80"
         		       ":" __stringify(EV_KEY) ":" __stringify(KEY_BACK)   ":300:930:112:80"
         		       ":" __stringify(EV_KEY) ":" __stringify(KEY_SEARCH) ":430:930:112:80"
         		       "\n");
@@ -8120,7 +8120,7 @@ static void __init virtualkeys_init(void)
         if (HW_VER_SUB_VA == get_hw_sub_board_id())
         {
             buf_vkey_size = sprintf(buf_virtualkey,
-        			    __stringify(EV_KEY) ":" __stringify(KEY_HOME)  ":50:930:112:80"
+        			    __stringify(EV_KEY) ":" __stringify(KEY_HOMEPAGE)  ":50:930:112:80"
         		       ":" __stringify(EV_KEY) ":" __stringify(KEY_MENU)   ":180:930:112:80"
         		       ":" __stringify(EV_KEY) ":" __stringify(KEY_BACK)   ":300:930:112:80"
         		       ":" __stringify(EV_KEY) ":" __stringify(KEY_SEARCH) ":430:930:112:80"
@@ -8130,7 +8130,7 @@ static void __init virtualkeys_init(void)
         {
             buf_vkey_size = sprintf(buf_virtualkey,
         			    __stringify(EV_KEY) ":" __stringify(KEY_MENU)  ":50:930:112:80"
-        		       ":" __stringify(EV_KEY) ":" __stringify(KEY_HOME)   ":180:930:112:80"
+        		       ":" __stringify(EV_KEY) ":" __stringify(KEY_HOMEPAGE)   ":180:930:112:80"
         		       ":" __stringify(EV_KEY) ":" __stringify(KEY_BACK)   ":300:930:112:80"
         		       ":" __stringify(EV_KEY) ":" __stringify(KEY_SEARCH) ":430:930:112:80"
         		       "\n");
@@ -8141,7 +8141,7 @@ static void __init virtualkeys_init(void)
         if (HW_VER_SUB_VA == get_hw_sub_board_id())
         {
             buf_vkey_size = sprintf(buf_virtualkey,
-        			    __stringify(EV_KEY) ":" __stringify(KEY_HOME)  ":50:930:112:80"
+        			    __stringify(EV_KEY) ":" __stringify(KEY_HOMEPAGE)  ":50:930:112:80"
         		       ":" __stringify(EV_KEY) ":" __stringify(KEY_MENU)   ":180:930:112:80"
         		       ":" __stringify(EV_KEY) ":" __stringify(KEY_BACK)   ":300:930:112:80"
         		       ":" __stringify(EV_KEY) ":" __stringify(KEY_SEARCH) ":430:930:112:80"
@@ -8151,7 +8151,7 @@ static void __init virtualkeys_init(void)
         {
             buf_vkey_size = sprintf(buf_virtualkey,
         			    __stringify(EV_KEY) ":" __stringify(KEY_MENU)  ":50:930:112:80"
-        		       ":" __stringify(EV_KEY) ":" __stringify(KEY_HOME)   ":180:930:112:80"
+        		       ":" __stringify(EV_KEY) ":" __stringify(KEY_HOMEPAGE)   ":180:930:112:80"
         		       ":" __stringify(EV_KEY) ":" __stringify(KEY_BACK)   ":300:930:112:80"
         		       ":" __stringify(EV_KEY) ":" __stringify(KEY_SEARCH) ":430:930:112:80"
         		       "\n");
@@ -8161,7 +8161,7 @@ static void __init virtualkeys_init(void)
             ||machine_is_msm8255_u8860())
     {
         buf_vkey_size = sprintf(buf_virtualkey,
-                        __stringify(EV_KEY) ":" __stringify(KEY_HOME)  ":50:930:112:80"
+                        __stringify(EV_KEY) ":" __stringify(KEY_HOMEPAGE)  ":50:930:112:80"
                       ":" __stringify(EV_KEY) ":" __stringify(KEY_MENU)   ":180:930:112:80"
                       ":" __stringify(EV_KEY) ":" __stringify(KEY_BACK)   ":300:930:112:80"
                       ":" __stringify(EV_KEY) ":" __stringify(KEY_SEARCH) ":430:930:112:80"
@@ -8171,7 +8171,7 @@ static void __init virtualkeys_init(void)
     {
         buf_vkey_size = sprintf(buf_virtualkey,
         			__stringify(EV_KEY) ":" __stringify(KEY_MENU)  ":67:850:130:80"
-        		   ":" __stringify(EV_KEY) ":" __stringify(KEY_HOME)   ":192:850:112:80"
+        		   ":" __stringify(EV_KEY) ":" __stringify(KEY_HOMEPAGE)   ":192:850:112:80"
         		   ":" __stringify(EV_KEY) ":" __stringify(KEY_BACK)   ":309:850:116:80"
         		   ":" __stringify(EV_KEY) ":" __stringify(KEY_SEARCH) ":424:850:110:80"
         		   "\n");
@@ -8182,7 +8182,7 @@ static void __init virtualkeys_init(void)
         buf_vkey_size = sprintf(buf_virtualkey,
         			__stringify(EV_KEY) ":" __stringify(KEY_BACK)  ":67:850:130:80"
         		   ":" __stringify(EV_KEY) ":" __stringify(KEY_MENU)   ":192:850:112:80"
-        		   ":" __stringify(EV_KEY) ":" __stringify(KEY_HOME)   ":309:850:116:80"
+        		   ":" __stringify(EV_KEY) ":" __stringify(KEY_HOMEPAGE)   ":309:850:116:80"
         		   ":" __stringify(EV_KEY) ":" __stringify(KEY_SEARCH) ":424:850:110:80"
         		   "\n");
     }
@@ -8190,7 +8190,7 @@ static void __init virtualkeys_init(void)
 		  || machine_is_msm8255_u8730())
     {
     	buf_vkey_size = sprintf(buf_virtualkey,
-        			__stringify(EV_KEY) ":" __stringify(KEY_HOME)        ":50:840:112:70"
+        			__stringify(EV_KEY) ":" __stringify(KEY_HOMEPAGE)        ":50:840:112:70"
         		   ":" __stringify(EV_KEY) ":" __stringify(KEY_MENU)         ":180:840:112:70"
         		   ":" __stringify(EV_KEY) ":" __stringify(KEY_BACK)         ":300:840:112:70"
         		   ":" __stringify(EV_KEY) ":" __stringify(KEY_GENIUSBUTTON) ":430:840:112:70"  /*special key for a certain apk*/
@@ -8200,7 +8200,7 @@ static void __init virtualkeys_init(void)
     {
         buf_vkey_size = sprintf(buf_virtualkey,
         			    __stringify(EV_KEY) ":" __stringify(KEY_MENU)  ":50:930:112:80"
-        		       ":" __stringify(EV_KEY) ":" __stringify(KEY_HOME)   ":180:930:112:80"
+        		       ":" __stringify(EV_KEY) ":" __stringify(KEY_HOMEPAGE)   ":180:930:112:80"
         		       ":" __stringify(EV_KEY) ":" __stringify(KEY_BACK)   ":300:930:112:80"
         		       ":" __stringify(EV_KEY) ":" __stringify(KEY_SEARCH) ":430:930:112:80"
         		       "\n");  
