@@ -5,6 +5,7 @@
 
 #include <asm-arm/huawei/smem_vendor_huawei.h>
 
+#define USB_MAX_LUNS   3
 /* enable printing information about USB switching */
 #define USB_AUTO_DEBUG
 /* CDROM iso file location */

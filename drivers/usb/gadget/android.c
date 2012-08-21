@@ -529,79 +529,6 @@ static struct android_usb_function ccid_function = {
 	.bind_config	= ccid_function_bind_config,
 };
 
-#if 0
-#define MAX_ACM_INSTANCES 4
-struct acm_function_config {
-	int instances;
-};
-
-static int acm_function_init(struct android_usb_function *f, struct usb_composite_dev *cdev)
-{
-	f->config = kzalloc(sizeof(struct acm_function_config), GFP_KERNEL);
-	if (!f->config)
-		return -ENOMEM;
-
-	return gserial_setup(cdev->gadget, MAX_ACM_INSTANCES);
-}
-
-static void acm_function_cleanup(struct android_usb_function *f)
-{
-	gserial_cleanup();
-	kfree(f->config);
-	f->config = NULL;
-}
-
-static int acm_function_bind_config(struct android_usb_function *f, struct usb_configuration *c)
-{
-	int i;
-	int ret = 0;
-	struct acm_function_config *config = f->config;
-
-	for (i = 0; i < config->instances; i++) {
-		ret = acm_bind_config(c, i);
-		if (ret) {
-			pr_err("Could not bind acm%u config\n", i);
-			break;
-		}
-	}
-
-	return ret;
-}
-
-static ssize_t acm_instances_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	struct android_usb_function *f = dev_get_drvdata(dev);
-	struct acm_function_config *config = f->config;
-	return sprintf(buf, "%d\n", config->instances);
-}
-
-static ssize_t acm_instances_store(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t size)
-{
-	struct android_usb_function *f = dev_get_drvdata(dev);
-	struct acm_function_config *config = f->config;
-	int value;
-
-	sscanf(buf, "%d", &value);
-	if (value > MAX_ACM_INSTANCES)
-		value = MAX_ACM_INSTANCES;
-	config->instances = value;
-	return size;
-}
-
-static DEVICE_ATTR(instances, S_IRUGO | S_IWUSR, acm_instances_show, acm_instances_store);
-static struct device_attribute *acm_function_attributes[] = { &dev_attr_instances, NULL };
-
-static struct android_usb_function acm_function = {
-	.name		= "acm",
-	.init		= acm_function_init,
-	.cleanup	= acm_function_cleanup,
-	.bind_config	= acm_function_bind_config,
-	.attributes	= acm_function_attributes,
-};
-#endif
-
 static int mtp_function_init(struct android_usb_function *f, struct usb_composite_dev *cdev)
 {
 	return mtp_setup();
@@ -851,18 +778,28 @@ static int mass_storage_function_init(struct android_usb_function *f,
 	struct mass_storage_function_config *config;
 	struct fsg_common *common;
 	int err;
-
+#ifdef CONFIG_HUAWEI_KERNEL
+    int i;
+#endif
 	config = kzalloc(sizeof(struct mass_storage_function_config),
 								GFP_KERNEL);
 	if (!config)
 		return -ENOMEM;
 
+#ifndef CONFIG_HUAWEI_KERNEL
 	config->fsg.nluns = 1;
 	config->fsg.luns[0].removable = 1;
-    /* 1 presents cdrom type */
-#ifdef CONFIG_HUAWEI_KERNEL
-	config->fsg.luns[0].cdrom = 1;
-#endif  /* CONFIG_HUAWEI_KERNEL */
+#else
+    /* support multi luns and ro of ench lun is set to 0 to allow
+     * opening "filename" in R/W mode. If the file is read-only,
+     * the ro will be set to 1 automatically.
+     */
+    config->fsg.nluns = USB_MAX_LUNS;
+	for (i = 0; i < USB_MAX_LUNS; i++) {
+        config->fsg.luns[i].removable = 1;
+        config->fsg.luns[i].nofua = 1;     
+	}   
+#endif
 
 	common = fsg_common_init(NULL, cdev, &config->fsg);
 	if (IS_ERR(common)) {
@@ -870,6 +807,7 @@ static int mass_storage_function_init(struct android_usb_function *f,
 		return PTR_ERR(common);
 	}
 
+#ifndef CONFIG_HUAWEI_KERNEL
 	err = sysfs_create_link(&f->dev->kobj,
 				&common->luns[0].dev.kobj,
 				"lun");
@@ -878,6 +816,21 @@ static int mass_storage_function_init(struct android_usb_function *f,
 		kfree(config);
 		return err;
 	}
+#else
+    /* create a symlink for each lun */
+	for (i = 0; i < USB_MAX_LUNS; i++)
+    {
+        err = sysfs_create_link(&f->dev->kobj,
+                    &common->luns[i].dev.kobj,
+                    dev_name(&common->luns[i].dev));
+        if (err)
+        {
+    		fsg_common_release(&common->ref);
+            kfree(config);
+            return err;
+        }
+    }
+#endif
 
 	config->common = common;
 	f->config = config;
