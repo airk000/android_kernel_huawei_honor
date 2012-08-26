@@ -166,7 +166,7 @@ from_old_alarm_set:
 		break;
 #ifdef CONFIG_HUAWEI_FEATURE_POWEROFF_ALARM
     /*set rtc alarm time ioctl case*/
-	case ANDROID_ALARM_SET_POWERUP_RTC:
+	case ANDROID_ALARM_SET_POWERUP_RTC_HUAWEI:
 		if (copy_from_user(&new_alarm_time, (void __user *)arg,
 		    sizeof(new_alarm_time))) {
 			rv = -EFAULT;
@@ -175,8 +175,9 @@ from_old_alarm_set:
 		printk("Set alarm time sec is %ld\n",new_alarm_time.tv_sec);
                 msmrtc_remote_rtc_set_alarm(&new_alarm_time);
 		break;
-#else /*CONFIG_HUAWEI_FEATURE_POWEROFF_ALARM*/
-/* liukai added at 20120822 for power-off alarm begin */
+#endif /*CONFIG_HUAWEI_FEATURE_POWEROFF_ALARM*/
+#ifdef CONFIG_SHENDU_FEATURE_POWERUP_ALARM
+/* liukai added at 20120822 for power-up alarm begin */
 	case ANDROID_ALARM_SET_POWERUP_RTC:
 	{
 		uint32_t rtc_alarm_time;
@@ -188,7 +189,7 @@ from_old_alarm_set:
 		}
 		printk("\n");
 		printk("\n rtc_alarm_time = %d ",rtc_alarm_time);
-			
+
 		if (pmic_rtc_get_time(&rtc_now) < 0) {
 		    rtc_now.sec = 0;
 		    if (pmic_rtc_start(&rtc_now) < 0) {
@@ -204,8 +205,8 @@ from_old_alarm_set:
 		printk("\n");
 		break;
 	}
-/* liukai added at 20120822 for power-off alarm end */
-#endif
+#endif /* CONFIG_SHENDU_FEATURE_POWERUP_ALARM */
+/* liukai added at 20120822 for power-up alarm end */
 	case ANDROID_ALARM_GET_TIME(0):
 		switch (alarm_type) {
 		case ANDROID_ALARM_RTC_WAKEUP:
