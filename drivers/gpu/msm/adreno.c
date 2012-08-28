@@ -275,6 +275,12 @@ static void adreno_setstate(struct kgsl_device *device,
 	unsigned int mh_mmu_invalidate = 0x00000003; /*invalidate all and tc */
 
 	/*
+	 * Fix target freeze issue by adding TLB flush for each submit
+	 * on A20X based targets.
+	 */
+	if (adreno_is_a20x(adreno_dev))
+		flags |= KGSL_MMUFLAGS_TLBFLUSH;
+	/*
 	 * If possible, then set the state via the command stream to avoid
 	 * a CPU idle.  Otherwise, use the default setstate which uses register
 	 * writes For CFF dump we must idle and use the registers so that it is
@@ -638,6 +644,8 @@ adreno_recover_hang(struct kgsl_device *device)
 	unsigned int soptimestamp;
 	unsigned int eoptimestamp;
 	struct adreno_context *drawctxt;
+	struct kgsl_context *context;
+	int next = 0;
 
 	KGSL_DRV_ERR(device, "Starting recovery from 3D GPU hang....\n");
 	rb_buffer = vmalloc(rb->buffer_desc.size);
@@ -705,6 +713,24 @@ adreno_recover_hang(struct kgsl_device *device)
 		"Context that caused a GPU hang: %x\n", bad_context);
 
 	drawctxt->flags |= CTXT_FLAGS_GPU_HANG;
+
+	/*
+	 * Set the reset status of all contexts to
+	 * INNOCENT_CONTEXT_RESET_EXT except for the bad context
+	 * since thats the guilty party
+	 */
+	while ((context = idr_get_next(&device->context_idr, &next))) {
+		if (KGSL_CTX_STAT_GUILTY_CONTEXT_RESET_EXT !=
+			context->reset_status) {
+			if (context->devctxt != drawctxt)
+				context->reset_status =
+				KGSL_CTX_STAT_INNOCENT_CONTEXT_RESET_EXT;
+			else
+				context->reset_status =
+				KGSL_CTX_STAT_GUILTY_CONTEXT_RESET_EXT;
+		}
+		next = next + 1;
+	}
 
 	/* Restore valid commands in ringbuffer */
 	adreno_ringbuffer_restore(rb, rb_buffer, num_rb_contents);
@@ -915,9 +941,9 @@ static unsigned int adreno_isidle(struct kgsl_device *device)
 	struct adreno_ringbuffer *rb = &adreno_dev->ringbuffer;
 	unsigned int rbbm_status;
 
-    /* patch for kgsl: power state cleanup */
-	WARN_ON(!(rb->flags & KGSL_FLAGS_STARTED));
-	if (rb->flags & KGSL_FLAGS_STARTED) {
+	WARN_ON(device->state == KGSL_STATE_INIT);
+	/* If the device isn't active, don't force it on. */
+	if (device->state == KGSL_STATE_ACTIVE) {
 		/* Is the ring buffer is empty? */
 		GSL_RB_GET_READPTR(rb, &rb->rptr);
 		if (!device->active_cnt && (rb->rptr == rb->wptr)) {
@@ -1170,55 +1196,55 @@ static int adreno_waittimestamp(struct kgsl_device *device,
 	msecs_first = (msecs <= 100) ? ((msecs + 4) / 5) : 100;
 	msecs_part = (msecs - msecs_first + 3) / 4;
 	for (retries = 0; retries < 5; retries++) {
-		if (!kgsl_check_timestamp(device, timestamp)) {
-			adreno_poke(device);
-			io_cnt = (io_cnt + 1) % 100;
-			if (io_cnt <
-				pwr->pwrlevels[pwr->active_pwrlevel].
-					io_fraction)
-				io = 0;
-			mutex_unlock(&device->mutex);
-			/* We need to make sure that the process is
-			 * placed in wait-q before its condition is called
+		if (kgsl_check_timestamp(device, timestamp)) {
+			/* if the timestamp happens while we're not
+			 * waiting, there's a chance that an interrupt
+			 * will not be generated and thus the timestamp
+			 * work needs to be queued.
 			 */
-			status = kgsl_wait_event_interruptible_timeout(
-					device->wait_queue,
-					kgsl_check_interrupt_timestamp(device,
-						timestamp),
-					msecs_to_jiffies(retries ?
-						msecs_part : msecs_first), io);
-			mutex_lock(&device->mutex);
+			queue_work(device->work_queue, &device->ts_expired_ws);
+			status = 0;
+			goto done;
+		}
+		adreno_poke(device);
+		io_cnt = (io_cnt + 1) % 100;
+		if (io_cnt <
+		    pwr->pwrlevels[pwr->active_pwrlevel].io_fraction)
+			io = 0;
+		mutex_unlock(&device->mutex);
+		/* We need to make sure that the process is
+		 * placed in wait-q before its condition is called
+		 */
+		status = kgsl_wait_event_interruptible_timeout(
+				device->wait_queue,
+				kgsl_check_interrupt_timestamp(device,
+					timestamp),
+				msecs_to_jiffies(retries ?
+					msecs_part : msecs_first), io);
+		mutex_lock(&device->mutex);
 
-			if (status > 0) {
-				/*completed before the wait finished */
-				status = 0;
-				goto done;
-			} else if (status < 0) {
-				/*an error occurred*/
-				goto done;
-			}
-			/*this wait timed out*/
+		if (status > 0) {
+			/*completed before the wait finished */
+			status = 0;
+			goto done;
+		} else if (status < 0) {
+			/*an error occurred*/
+			goto done;
 		}
+		/*this wait timed out*/
 	}
-	if (!kgsl_check_timestamp(device, timestamp)) {
-		status = -ETIMEDOUT;
-		KGSL_DRV_ERR(device,
-			"Device hang detected while waiting "
-			"for timestamp: %x, last "
-			"submitted(rb->timestamp): %x, wptr: "
-			"%x\n", timestamp,
-			adreno_dev->ringbuffer.timestamp,
-			adreno_dev->ringbuffer.wptr);
-		if (!adreno_dump_and_recover(device)) {
-			/* wait for idle after recovery as the
-			 * timestamp that this process wanted
-			 * to wait on may be invalid */
-			if (!adreno_idle(device,
-				KGSL_TIMEOUT_DEFAULT))
-				status = 0;
-		}
-	} else {
-		status = 0;
+	status = -ETIMEDOUT;
+	KGSL_DRV_ERR(device,
+		     "Device hang detected while waiting for timestamp: %x,"
+		      "last submitted(rb->timestamp): %x, wptr: %x\n",
+		      timestamp, adreno_dev->ringbuffer.timestamp,
+		      adreno_dev->ringbuffer.wptr);
+	if (!adreno_dump_and_recover(device)) {
+		/* wait for idle after recovery as the
+		 * timestamp that this process wanted
+		 * to wait on may be invalid */
+		if (!adreno_idle(device, KGSL_TIMEOUT_DEFAULT))
+			status = 0;
 	}
 
 done:
