@@ -40,7 +40,9 @@
 #include <linux/device.h>
 #include <mach/vreg.h>
 #include <mach/gpio.h>
-
+#ifdef SLIP2WEAK
+#include <linux/stddef.h>
+#endif
 /*include the .h file*/
 #include <linux/proc_fs.h>
 #include <linux/touch_platform_config.h>
@@ -63,7 +65,15 @@ DEVICE_ATTR(_pre##_##_name,_mode,_pre##_##_name##_show,_pre##_##_name##_store)
 #define BTN_F30 BTN_0
 #define SCROLL_ORIENTATION REL_Y
 
-
+#define SLIP2WEAK
+#ifdef SLIP2WEAK
+static bool enable_slip2weak = true;
+bool s2w_scr_on = true;
+bool s2w_have_happened = false;
+bool slip_loc[3];
+static struct input_dev * s2w_power_dev;
+static DEFINE_MUTEX(s2wpwrlock);
+#endif
 //#define TS_RMI_DEBUG
 #undef TS_RMI_DEBUG 
 #ifdef TS_RMI_DEBUG
@@ -95,7 +105,7 @@ module_param_named(synaptics_debug, synaptics_debug_mask, int,
 		S_IRUGO | S_IWUSR | S_IWGRP);
 
 #define DBG_MASK(x...) do {\
-	if (synaptics_debug_mask) \
+	if (0) \
 		printk(KERN_DEBUG x);\
 	} while (0)
 
@@ -182,10 +192,6 @@ static int lcd_x = 0;
 static int lcd_y = 0;
 static int jisuan = 0;
 
-
-
-
-
 /* define in platform/board file(s) */
 extern struct i2c_device_id synaptics_rmi4_id[];
 
@@ -194,6 +200,64 @@ static void synaptics_rmi4_early_suspend(struct early_suspend *h);
 static void synaptics_rmi4_late_resume(struct early_suspend *h);
 #endif
 /*check the scope of X  axes*/
+
+#ifdef SLIP2WEAK
+static void s2w_power_key(struct work_struct * s2w_power_press) 
+{ 
+	mutex_lock(&s2wpwrlock); 	
+	input_event(s2w_power_dev, EV_KEY, KEY_POWER, 1); 
+	input_event(s2w_power_dev, EV_SYN, 0, 0); 	
+	msleep(100); 	
+	input_event(s2w_power_dev, EV_KEY, KEY_POWER, 0); 
+	input_event(s2w_power_dev, EV_SYN, 0, 0); 	
+	msleep(100); 	
+	mutex_unlock(&s2wpwrlock); 	
+	return; 
+}
+static DECLARE_WORK(s2w_power_press, s2w_power_key); 
+
+void slip2weak_trigger(int function)
+{
+	printk("\n");
+	printk("\n *********************");
+	printk("\n *********************");
+	printk("\n ***       TRIGGER         ***");
+	printk("\n ***       TRIGGER         ***");
+	printk("\n *********************");
+	printk("\n ******  Function  ******");
+	if(function == 1)
+		printk("\n *******    ON    *******");
+	else if(function == 0)
+		printk("\n *******    OFF    *******");
+	else
+		printk("\n *******    ERR    *******");
+	printk("\n *********************");
+	printk("\n");
+	//msleep(5000);
+	//if (mutex_trylock(&s2wpwrlock)) {
+	//	schedule_work(&s2w_power_press); 
+	//	mutex_unlock(&s2wpwrlock); 	
+	//}
+	return;
+}
+
+int check_y_scope(u12 y)
+{
+	if(y <= 1023 && y >= 1023-130)
+		return 1;
+	else
+		return 0;
+}
+/*
+extern void s2w_setdev(struct input_dev * input_device) {
+
+	s2w_power_dev = input_device;
+	return;
+}
+
+EXPORT_SYMBOL(s2w_setdev);
+*/
+#endif
 u12 check_scope_X(u12 x)
 {
 	u12 temp = x;
@@ -208,7 +272,6 @@ u12 check_scope_X(u12 x)
 
 	return temp;
 }
-
 static int synaptics_rmi4_read_pdt(struct synaptics_rmi4 *ts)
 {
 	int ret = 0;
@@ -452,7 +515,6 @@ static void synaptics_rmi4_work_func(struct work_struct *work)
 /* delete some lines*/
     __u8 finger_status = 0x00;
     
-
 /*we don't use the CONFIG_HUAWEI_TOUCHSCREEN_EXTRA_KEY so delete all the CONFIG_HUAWEI_TOUCHSCREEN_EXTRA_KEY code*/
     __u8 reg = 0;
     __u8 *finger_reg = NULL;
@@ -461,7 +523,10 @@ static void synaptics_rmi4_work_func(struct work_struct *work)
     u4 wx = 0;
     u4 wy = 0;
     u8 z = 0 ;
-
+#ifdef SLIP2WEAK
+	u12 next_x = 0;
+	u12 pre_x = 0;
+#endif
 	struct synaptics_rmi4 *ts = container_of(work,
 					struct synaptics_rmi4, work);
 
@@ -473,10 +538,9 @@ static void synaptics_rmi4_work_func(struct work_struct *work)
     else /* else with "i2c_transfer's return value"*/
 	{
 		__u8 *interrupt = &ts->data[ts->f01.data_offset + 1];
-		if (ts->hasF11 && interrupt[ts->f11.interrupt_offset] & ts->f11.interrupt_mask) 
+	if (ts->hasF11 && interrupt[ts->f11.interrupt_offset] & ts->f11.interrupt_mask) 
         {
             __u8 *f11_data = &ts->data[ts->f11.data_offset];
-
             int f = 0;
 			__u8 finger_status_reg = 0;
 			__u8 fsr_len = (ts->f11.points_supported + 3) / 4;
@@ -526,19 +590,84 @@ static void synaptics_rmi4_work_func(struct work_struct *work)
                     y = y * jisuan / ts_y_max;
 					/*check the scope of X  axes*/
                     x = check_scope_X(x);
-
+			//printk("%d\n",x);
                     DBG_MASK("the x is %d the y is %d the stauts is %d!\n",x,y,finger_status);
+#ifdef SLIP2WEAK
+if((((finger_status > 0)?1:0) == 0) && enable_slip2weak ==1 && check_y_scope(y)){
+	//printk("\n touch release, clear flags\n");
+	s2w_have_happened = false;
+	slip_loc[0] = false;
+	slip_loc[1] = false;
+	slip_loc[2] = false;
+}
+//Left->Right
+if(finger_status ==1 && enable_slip2weak == 1 && s2w_scr_on == false){
+	pre_x = 0;
+	next_x =115;
+	if(slip_loc[0] == true ||
+		(x>pre_x &&
+		x<next_x &&
+		check_y_scope(y))){
+		pre_x = 115;
+		next_x =240;
+		slip_loc[0] = true;
+		if(slip_loc[1] == true ||
+			(x>pre_x &&
+			x<next_x &&
+			check_y_scope(y))){
+			pre_x = 240;
+			next_x =365;
+			slip_loc[1] = true;
+			if(x>pre_x && x<next_x && check_y_scope(y)){
+				if(!s2w_have_happened){
+					s2w_have_happened = true;
+					slip2weak_trigger(1);	//On
+				}
+			}
+		}
+	}
+}
+//Right->Left
+
+if(finger_status ==1 && enable_slip2weak ==1 && s2w_scr_on == true){
+	pre_x = 365;
+	next_x =478;
+	if(slip_loc[0] == true ||
+		(x>pre_x &&
+		x<next_x &&
+		check_y_scope(y))){
+		pre_x = 240;
+		next_x =365;
+		slip_loc[0] = true;
+		if(slip_loc[1] == true ||
+			(x>pre_x &&
+			x<next_x &&
+			check_y_scope(y))){
+			pre_x = 115;
+			next_x =240;
+			slip_loc[1] = true;
+			if(x>pre_x && x<next_x && check_y_scope(y)){
+				if(!s2w_have_happened){
+					s2w_have_happened = true;
+					slip2weak_trigger(0);	//Off
+				}
+			}
+		}
+	}
+}
+
+#endif
                 	/* Linux 2.6.31 multi-touch */
 					/* update Version G,tp report id event should begin with id0,or the angry birds can not play*/
 					/*< fengwei 20111207 begin */
-					if (z)
+		if (z)
                     {
-						input_report_abs(ts->input_dev, ABS_MT_TRACKING_ID, f);
-                		input_report_abs(ts->input_dev, ABS_MT_POSITION_X, x);
-                		input_report_abs(ts->input_dev, ABS_MT_POSITION_Y, y);
-                		input_report_abs(ts->input_dev, ABS_MT_TOUCH_MAJOR, z);
-                		//input_report_abs(ts->input_dev, ABS_MT_TOUCH_MINOR, min(wx, wy));
-                		//input_report_abs(ts->input_dev, ABS_MT_ORIENTATION, (wx > wy ? 1 : 0));
+			input_report_abs(ts->input_dev, ABS_MT_TRACKING_ID, f);
+            		input_report_abs(ts->input_dev, ABS_MT_POSITION_X, x);
+            		input_report_abs(ts->input_dev, ABS_MT_POSITION_Y, y);
+            		input_report_abs(ts->input_dev, ABS_MT_TOUCH_MAJOR, z);
+            		//input_report_abs(ts->input_dev, ABS_MT_TOUCH_MINOR, min(wx, wy));
+            		//input_report_abs(ts->input_dev, ABS_MT_ORIENTATION, (wx > wy ? 1 : 0));
                     	input_report_abs(ts->input_dev, ABS_MT_WIDTH_MAJOR, z);
                     	input_mt_sync(ts->input_dev);  
                     	DBG_MASK("the touch inout is ok!\n");
@@ -559,7 +688,7 @@ static void synaptics_rmi4_work_func(struct work_struct *work)
             }
             else /* else with "if(ts->is_support_multi_touch)"*/
             {
-    			finger_status_reg = f11_data[0];
+		finger_status_reg = f11_data[0];
                 finger_status = (finger_status_reg & 3);
                 TS_DEBUG_RMI("the finger_status is %2d!\n",finger_status);
           
@@ -589,68 +718,66 @@ static void synaptics_rmi4_work_func(struct work_struct *work)
                 
                 /*we don't use the CONFIG_HUAWEI_TOUCHSCREEN_EXTRA_KEY so delete all the CONFIG_HUAWEI_TOUCHSCREEN_EXTRA_KEY code*/
             }
-
-
- 
             /* f == ts->f11.points_supported */
 			/* set f to offset after all absolute data */
 			f = (f + 3) / 4 + f * 5;
-			if (ts->f11_has_relative) 
-            {
-				/* NOTE: not reporting relative data, even if available */
-				/* just skipping over relative data registers */
-				f += 2;
-			}
-			if (ts->hasEgrPalmDetect) 
-            {
+		if (ts->f11_has_relative) 
+		{
+			/* NOTE: not reporting relative data, even if available */
+			/* just skipping over relative data registers */
+			f += 2;
+		}
+		if (ts->hasEgrPalmDetect) 
+		{
              	input_report_key(ts->input_dev,
 	                 BTN_DEAD,
 	                 f11_data[f + EGR_PALM_DETECT_REG] & EGR_PALM_DETECT);
+		}
+		if (ts->hasEgrFlick) 
+		{
+	             	if (f11_data[f + EGR_FLICK_REG] & EGR_FLICK) 
+	                {
+				input_report_rel(ts->input_dev, REL_X, f11_data[f + 2]);
+				input_report_rel(ts->input_dev, REL_Y, f11_data[f + 3]);
 			}
-			if (ts->hasEgrFlick) 
-            {
-             	if (f11_data[f + EGR_FLICK_REG] & EGR_FLICK) 
-                {
-					input_report_rel(ts->input_dev, REL_X, f11_data[f + 2]);
-					input_report_rel(ts->input_dev, REL_Y, f11_data[f + 3]);
-				}
-			}
-			if (ts->hasEgrSingleTap) 
-            {
-				input_report_key(ts->input_dev,
-				                 BTN_TOUCH,
-				                 f11_data[f + EGR_SINGLE_TAP_REG] & EGR_SINGLE_TAP);
-			}
-			if (ts->hasEgrDoubleTap) 
-            {
-				input_report_key(ts->input_dev,
-				                 BTN_TOOL_DOUBLETAP,
-				                 f11_data[f + EGR_DOUBLE_TAP_REG] & EGR_DOUBLE_TAP);
-			}
+		}
+		if (ts->hasEgrSingleTap) 
+		{
+			input_report_key(ts->input_dev,
+			                 BTN_TOUCH,
+			                 f11_data[f + EGR_SINGLE_TAP_REG] & EGR_SINGLE_TAP);
+		}
+		if (ts->hasEgrDoubleTap) 
+		{
+			input_report_key(ts->input_dev,
+			                 BTN_TOOL_DOUBLETAP,
+			                 f11_data[f + EGR_DOUBLE_TAP_REG] & EGR_DOUBLE_TAP);
+		}
         }
 
 		if (ts->hasF19 && interrupt[ts->f19.interrupt_offset] & ts->f19.interrupt_mask) 
-        {
+	        {
 			int reg;
 			int touch = 0;
+			printk("if (ts->hasF19 && interrupt[ts->f19.interrupt_offset] & ts->f19.interrupt_mask) ");
 			for (reg = 0; reg < ((ts->f19.points_supported + 7) / 8); reg++)
 			{
 				if (ts->data[ts->f19.data_offset + reg]) 
-                {
+				{
 					touch = 1;
-				   	break;
+					break;
 				}
 			}
 			input_report_key(ts->input_dev, BTN_DEAD, touch);
-
 		}
-    		input_sync(ts->input_dev);
+		input_sync(ts->input_dev);
 	}
 	/*delete one line*/
 	if (ts->use_irq)
 	{
-       enable_irq(ts->client->irq);
-    }
+		//printk("enable_irq!!!!");
+		enable_irq(ts->client->irq);
+	}
 /* delete some lines which is not needed anymore*/
 }
 
@@ -669,7 +796,7 @@ static enum hrtimer_restart synaptics_rmi4_timer_func(struct hrtimer *timer)
 irqreturn_t synaptics_rmi4_irq_handler(int irq, void *dev_id)
 {
 	struct synaptics_rmi4 *ts = dev_id;
-
+	//printk("%s\n",__func__);
 	disable_irq_nosync(ts->client->irq);
 	queue_work(synaptics_wq, &ts->work);
 
@@ -1114,19 +1241,31 @@ static int synaptics_rmi4_suspend(struct i2c_client *client, pm_message_t mesg)
 		hrtimer_cancel(&ts->timer);
 
 	ret = cancel_work_sync(&ts->work);    
+#ifdef SLIP2WEAK
+	ret = 1;
+#endif
 	if (ret && ts->use_irq) /* if work was pending disable-count is now 2 */
     {   
         enable_irq(client->irq);
+#ifdef SLIP2WEAK
+	//printk("Enable SLIP2WEAK, so enable irq!");
+#else
         printk(KERN_ERR "synaptics_ts_suspend: can't cancel the work ,so enable the irq \n");
+#endif
     }
+#ifndef SLIP2WEAK
     ret = i2c_smbus_write_byte_data(client, fd_01.controlBase, 0x01); //use control base to set tp sleep
     if(ret < 0)
     {
         printk(KERN_ERR "synaptics_ts_suspend: the touch can't get into deep sleep \n");
     }
-
 	ts->enable = 0;
-
+#else
+	ts->enable = 1;
+#endif
+#ifdef SLIP2WEAK
+	s2w_scr_on = false;
+#endif
 	return 0;
 }
 
@@ -1148,7 +1287,9 @@ static int synaptics_rmi4_resume(struct i2c_client *client)
 	else
 		hrtimer_start(&ts->timer, ktime_set(1, 0), HRTIMER_MODE_REL);
     printk(KERN_ERR "synaptics_rmi4_touch is resume!\n");
-
+#ifdef SLIP2WEAK
+	s2w_scr_on = true;
+#endif
 	return 0;
 }
 
