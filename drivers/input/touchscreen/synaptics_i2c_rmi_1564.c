@@ -68,7 +68,8 @@ DEVICE_ATTR(_pre##_##_name,_mode,_pre##_##_name##_show,_pre##_##_name##_store)
 #define SCROLL_ORIENTATION REL_Y
 
 //#ifdef CONFIG_SHENDU_FEATURE_SLIP2WEAK
-#define SLIP2WEAK
+//#define SLIP2WEAK
+#undef SLIP2WEAK
 #ifdef SLIP2WEAK
 static bool enable_slip2weak = true;
 bool s2w_scr_on = true;

@@ -649,9 +649,9 @@ static int __devinit pmic8xxx_kp_probe(struct platform_device *pdev)
 	kp->input->keycodesize	= sizeof(kp->keycodes);
 	kp->input->open		= pmic8xxx_kp_open;
 	kp->input->close	= pmic8xxx_kp_close;
-
+#if 0
 	s2w_setdev(kp->input) ;
-
+#endif
 	matrix_keypad_build_keymap(keymap_data, PM8XXX_ROW_SHIFT,
 					kp->input->keycode, kp->input->keybit);
 
