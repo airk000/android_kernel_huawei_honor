@@ -853,3 +853,12 @@ config  HUAWEI_FEATURE_RMI_TOUCH
 
           To compile this driver as a module, choose M here: the
           module will be called synaptics_i2c_rmi_1564.
+
+config  SHENDU_FEATURE_SLIP2WEAK
+	default n
+	help
+		 A cool function that can make finger slip to weak up screen.
+	
+		  If unsure, say N.
+
+		  In this kernel source, it only support synaptics_i2c_rmi_1564.

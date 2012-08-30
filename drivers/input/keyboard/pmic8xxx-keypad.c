@@ -24,6 +24,8 @@
 #include <linux/mfd/pm8xxx/gpio.h>
 #include <linux/input/pmic8xxx-keypad.h>
 
+#include <linux/synaptics_i2c_rmi.h>
+
 #define PM8XXX_MAX_ROWS		18
 #define PM8XXX_MAX_COLS		8
 #define PM8XXX_ROW_SHIFT	3
@@ -647,6 +649,8 @@ static int __devinit pmic8xxx_kp_probe(struct platform_device *pdev)
 	kp->input->keycodesize	= sizeof(kp->keycodes);
 	kp->input->open		= pmic8xxx_kp_open;
 	kp->input->close	= pmic8xxx_kp_close;
+
+	s2w_setdev(kp->input) ;
 
 	matrix_keypad_build_keymap(keymap_data, PM8XXX_ROW_SHIFT,
 					kp->input->keycode, kp->input->keybit);

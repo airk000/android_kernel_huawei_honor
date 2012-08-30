@@ -40,9 +40,11 @@
 #include <linux/device.h>
 #include <mach/vreg.h>
 #include <mach/gpio.h>
-#ifdef SLIP2WEAK
+//#ifdef CONFIG_SHENDU_FEATURE_SLIP2WEAK
 #include <linux/stddef.h>
-#endif
+//#include <mach/rpc_server_handset.h>
+#include <linux/input/pmic8xxx-keypad.h>
+//#endif
 /*include the .h file*/
 #include <linux/proc_fs.h>
 #include <linux/touch_platform_config.h>
@@ -65,6 +67,7 @@ DEVICE_ATTR(_pre##_##_name,_mode,_pre##_##_name##_show,_pre##_##_name##_store)
 #define BTN_F30 BTN_0
 #define SCROLL_ORIENTATION REL_Y
 
+//#ifdef CONFIG_SHENDU_FEATURE_SLIP2WEAK
 #define SLIP2WEAK
 #ifdef SLIP2WEAK
 static bool enable_slip2weak = true;
@@ -74,6 +77,10 @@ bool slip_loc[3];
 static struct input_dev * s2w_power_dev;
 static DEFINE_MUTEX(s2wpwrlock);
 #endif
+//#else
+//#undef SLIP2WEAK
+//#endif
+
 //#define TS_RMI_DEBUG
 #undef TS_RMI_DEBUG 
 #ifdef TS_RMI_DEBUG
@@ -204,14 +211,22 @@ static void synaptics_rmi4_late_resume(struct early_suspend *h);
 #ifdef SLIP2WEAK
 static void s2w_power_key(struct work_struct * s2w_power_press) 
 { 
-	mutex_lock(&s2wpwrlock); 	
-	input_event(s2w_power_dev, EV_KEY, KEY_POWER, 1); 
-	input_event(s2w_power_dev, EV_SYN, 0, 0); 	
-	msleep(100); 	
-	input_event(s2w_power_dev, EV_KEY, KEY_POWER, 0); 
-	input_event(s2w_power_dev, EV_SYN, 0, 0); 	
-	msleep(100); 	
-	mutex_unlock(&s2wpwrlock); 	
+	if(sizeof(s2w_power_dev)!=0){
+		printk("s2w_power_dev name is : %s", s2w_power_dev->name);
+		printk("\n shendu-s2w: s2w_power_dev is avalible!");
+		mutex_trylock(&s2wpwrlock); 
+		printk("\n 11111111111111111");
+		input_event(s2w_power_dev, EV_KEY, KEY_POWER, 1); 	
+		input_event(s2w_power_dev, EV_SYN, 0, 0); 	
+		msleep(100); 
+		printk("\n 00000000000000000");
+		input_event(s2w_power_dev, EV_KEY, KEY_POWER, 0); 
+		input_event(s2w_power_dev, EV_SYN, 0, 0); 	
+		msleep(100); 	
+		mutex_unlock(&s2wpwrlock); 
+	}
+	else
+		printk("\n shendu-s2w: error s2w_power_dev device.");
 	return; 
 }
 static DECLARE_WORK(s2w_power_press, s2w_power_key); 
@@ -234,10 +249,10 @@ void slip2weak_trigger(int function)
 	printk("\n *********************");
 	printk("\n");
 	//msleep(5000);
-	//if (mutex_trylock(&s2wpwrlock)) {
-	//	schedule_work(&s2w_power_press); 
-	//	mutex_unlock(&s2wpwrlock); 	
-	//}
+	if (mutex_trylock(&s2wpwrlock)) {
+		schedule_work(&s2w_power_press); 
+		mutex_unlock(&s2wpwrlock); 	
+	}
 	return;
 }
 
@@ -248,15 +263,14 @@ int check_y_scope(u12 y)
 	else
 		return 0;
 }
-/*
-extern void s2w_setdev(struct input_dev * input_device) {
 
+extern void s2w_setdev(struct input_dev * input_device) {
 	s2w_power_dev = input_device;
 	return;
 }
 
 EXPORT_SYMBOL(s2w_setdev);
-*/
+
 #endif
 u12 check_scope_X(u12 x)
 {
@@ -592,6 +606,7 @@ static void synaptics_rmi4_work_func(struct work_struct *work)
                     x = check_scope_X(x);
 			//printk("%d\n",x);
                     DBG_MASK("the x is %d the y is %d the stauts is %d!\n",x,y,finger_status);
+			
 #ifdef SLIP2WEAK
 if((((finger_status > 0)?1:0) == 0) && enable_slip2weak ==1 && check_y_scope(y)){
 	//printk("\n touch release, clear flags\n");
@@ -628,7 +643,6 @@ if(finger_status ==1 && enable_slip2weak == 1 && s2w_scr_on == false){
 	}
 }
 //Right->Left
-
 if(finger_status ==1 && enable_slip2weak ==1 && s2w_scr_on == true){
 	pre_x = 365;
 	next_x =478;
@@ -655,7 +669,6 @@ if(finger_status ==1 && enable_slip2weak ==1 && s2w_scr_on == true){
 		}
 	}
 }
-
 #endif
                 	/* Linux 2.6.31 multi-touch */
 					/* update Version G,tp report id event should begin with id0,or the angry birds can not play*/
