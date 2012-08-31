@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2010-2012, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -298,6 +298,11 @@ int kgsl_pwrscale_attach_policy(struct kgsl_device *device,
 
 	if (device->pwrscale.policy == policy)
 		goto done;
+
+	if (device->pwrctrl.num_pwrlevels < 3) {
+		ret = -EINVAL;
+		goto done;
+	}
 
 	if (device->pwrscale.policy != NULL)
 		_kgsl_pwrscale_detach_policy(device);

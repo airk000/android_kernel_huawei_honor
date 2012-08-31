@@ -35,7 +35,7 @@
 #include <mach/vreg.h>
 
 #include "linux/hardware_self_adapt.h"
-
+#include <linux/gpio_event.h>
 #ifdef CONFIG_HUAWEI_HW_DEV_DCT
 #include <linux/hw_dev_dec.h>
 #endif
@@ -568,6 +568,7 @@ akmd_ioctl(struct file *file, unsigned int cmd,
 	short delay;		/* for GET_DELAY */
 	int status;			/* for OPEN/CLOSE_STATUS */
 	int ret = -1;		/* Return value. */
+	int slide = 0;
 	/*AKMDBG("%s (0x%08X).", __func__, cmd);*/
 
 	/*set the value of auto-calibration*/
@@ -614,7 +615,13 @@ akmd_ioctl(struct file *file, unsigned int cmd,
 		}
 		printk(KERN_INFO "ECS_IOCTL_SET_CAL   calibration_value=%d\n",calibration_value);
 		break;
-		
+	/*add ioctl cmd*/
+	case ECS_IOCTL_APP_GET_SLIDE:
+		if (argp == NULL) {
+			AKMDBG("invalid argument.");
+			return -EINVAL;
+		}
+		break;
 	default:
 		break;
 	}
@@ -673,6 +680,11 @@ akmd_ioctl(struct file *file, unsigned int cmd,
 		AKMFUNC("IOCTL_GET_DELAY");
 		delay = akmd_delay;
 		break;
+	/*add ioctl cmd*/
+	case ECS_IOCTL_APP_GET_SLIDE:  
+		slide = get_slide_pressed();
+		AKMFUNC("GET_SLIDE \n");
+		break;
 	case ECS_IOCTL_SET_CAL:
 		break;
 	default:
@@ -701,6 +713,13 @@ akmd_ioctl(struct file *file, unsigned int cmd,
 		break;
 	case ECS_IOCTL_GET_DELAY:
 		if (copy_to_user(argp, &delay, sizeof(delay))) {
+			AKMDBG("copy_to_user failed.");
+			return -EFAULT;
+		}
+		break;
+	/*add ioctl cmd*/
+	case ECS_IOCTL_APP_GET_SLIDE:  
+		if (copy_to_user(argp, &slide,sizeof(slide))) {
 			AKMDBG("copy_to_user failed.");
 			return -EFAULT;
 		}
