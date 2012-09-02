@@ -8271,7 +8271,7 @@ static void __init msm7x30_init_mmc(void)
 
 		msm7x30_sdc1_data.ocr_mask =  MMC_VDD_27_28 | MMC_VDD_28_29;
 		if (msm_sdc1_lvlshft_enable()) {
-			pr_err("%s: could not enable level shift\n");
+			pr_err("%s: could not enable level shift\n",__func__);
 			goto out1;
 		}
 	}

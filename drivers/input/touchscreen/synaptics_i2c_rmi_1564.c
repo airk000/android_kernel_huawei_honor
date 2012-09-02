@@ -68,8 +68,8 @@ DEVICE_ATTR(_pre##_##_name,_mode,_pre##_##_name##_show,_pre##_##_name##_store)
 #define SCROLL_ORIENTATION REL_Y
 
 //#ifdef CONFIG_SHENDU_FEATURE_SLIP2WEAK
-#define SLIP2WEAK
-//#undef SLIP2WEAK
+//#define SLIP2WEAK
+#undef SLIP2WEAK
 #ifdef SLIP2WEAK
 static bool enable_slip2weak = true;
 bool s2w_scr_on = true;
@@ -1266,7 +1266,7 @@ static int synaptics_rmi4_suspend(struct i2c_client *client, pm_message_t mesg)
     {   
         enable_irq(client->irq);
 #ifdef SLIP2WEAK
-	//printk("Enable SLIP2WEAK, so enable irq!");
+	printk("Enable SLIP2WEAK, so enable irq!");
 #else
         printk(KERN_ERR "synaptics_ts_suspend: can't cancel the work ,so enable the irq \n");
 #endif

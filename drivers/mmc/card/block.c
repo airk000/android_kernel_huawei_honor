@@ -1445,7 +1445,7 @@ static int mmc_blk_probe(struct mmc_card *card)
 			goto out;
 	}
 
-#ifdef CONFIG_HUAWEI_KERNEL
+#if 0
     if (!strcmp(md->disk->disk_name, "mmcblk0"))
         mmc_panic_save_card(card);
 #endif
