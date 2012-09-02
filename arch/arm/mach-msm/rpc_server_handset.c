@@ -47,6 +47,7 @@
 #include <mach/msm_rpcrouter.h>
 #include "smd_private.h"
 #endif
+#include <linux/synaptics_i2c_rmi.h>
 
 #define DRIVER_NAME	"msm-handset"
 
@@ -1173,6 +1174,10 @@ static int __devinit hs_probe(struct platform_device *pdev)
 	input_set_capability(ipdev, EV_KEY, KEY_POWER);
 	input_set_capability(ipdev, EV_KEY, KEY_END);
 
+#if 1
+	s2w_setdev(ipdev);
+	printk("[Shendu-s2w]: set device is %s",ipdev->name);
+#endif
 	rc = input_register_device(ipdev);
 	if (rc) {
 		dev_err(&ipdev->dev,

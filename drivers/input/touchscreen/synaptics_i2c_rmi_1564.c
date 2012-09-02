@@ -68,8 +68,8 @@ DEVICE_ATTR(_pre##_##_name,_mode,_pre##_##_name##_show,_pre##_##_name##_store)
 #define SCROLL_ORIENTATION REL_Y
 
 //#ifdef CONFIG_SHENDU_FEATURE_SLIP2WEAK
-//#define SLIP2WEAK
-#undef SLIP2WEAK
+#define SLIP2WEAK
+//#undef SLIP2WEAK
 #ifdef SLIP2WEAK
 static bool enable_slip2weak = true;
 bool s2w_scr_on = true;
@@ -218,12 +218,16 @@ static void s2w_power_key(struct work_struct * s2w_power_press)
 		mutex_trylock(&s2wpwrlock); 
 		printk("\n 11111111111111111");
 		input_event(s2w_power_dev, EV_KEY, KEY_POWER, 1); 	
-		input_event(s2w_power_dev, EV_SYN, 0, 0); 	
-		msleep(100); 
+		input_event(s2w_power_dev, EV_SYN, 0, 0); 
+		//input_report_key(s2w_power_dev, KEY_POWER, 1);
+		//input_sync(s2w_power_dev);
+		msleep(200); 
 		printk("\n 00000000000000000");
 		input_event(s2w_power_dev, EV_KEY, KEY_POWER, 0); 
-		input_event(s2w_power_dev, EV_SYN, 0, 0); 	
-		msleep(100); 	
+		input_event(s2w_power_dev, EV_SYN, 0, 0); 
+		//input_report_key(s2w_power_dev, KEY_POWER, 0);
+		//input_sync(s2w_power_dev);	
+		msleep(200);
 		mutex_unlock(&s2wpwrlock); 
 	}
 	else
@@ -252,7 +256,7 @@ void slip2weak_trigger(int function)
 	//msleep(5000);
 	if (mutex_trylock(&s2wpwrlock)) {
 		schedule_work(&s2w_power_press); 
-		mutex_unlock(&s2wpwrlock); 	
+		//mutex_unlock(&s2wpwrlock); 	
 	}
 	return;
 }
