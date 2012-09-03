@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2010-2012, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -27,11 +27,12 @@
 #include <linux/workqueue.h>
 #include <linux/android_pmem.h>
 #include <linux/clk.h>
+#include <media/msm/vidc_type.h>
+#include <media/msm/vcd_api.h>
+#include <media/msm/vidc_init.h>
 
-#include "vidc_type.h"
-#include "vcd_api.h"
 #include "venc_internal.h"
-#include "vidc_init.h"
+#include "vcd_res_tracker_api.h"
 
 #define VID_ENC_NAME	"msm_vidc_enc"
 
@@ -516,9 +517,10 @@ static int vid_enc_open(struct inode *inode, struct file *file)
 
 	stop_cmd = 0;
 	client_count = vcd_get_num_of_clients();
-	if (client_count == VIDC_MAX_NUM_CLIENTS) {
+	if (client_count == VIDC_MAX_NUM_CLIENTS ||
+		res_trk_check_for_sec_session()) {
 		ERR("ERROR : vid_enc_open() max number of clients"
-		    "limit reached\n");
+		    "limit reached or secure session is open\n");
 		mutex_unlock(&vid_enc_device_p->lock);
 		return -ENODEV;
 	}
@@ -543,6 +545,7 @@ static int vid_enc_open(struct inode *inode, struct file *file)
 
 	init_completion(&client_ctx->event);
 	mutex_init(&client_ctx->msg_queue_lock);
+	mutex_init(&client_ctx->enrty_queue_lock);
 	INIT_LIST_HEAD(&client_ctx->msg_queue);
 	init_waitqueue_head(&client_ctx->msg_wait);
 	if (vcd_get_ion_status()) {
@@ -1551,6 +1554,7 @@ static long vid_enc_ioctl(struct file *file,
 		if (copy_from_user(&metabuffer_mode, venc_msg.in,
 			sizeof(metabuffer_mode)))
 			return -EFAULT;
+		printk("\n mode is %d",metabuffer_mode);
 		vcd_property_hdr.prop_id = VCD_I_META_BUFFER_MODE;
 		vcd_property_hdr.sz =
 			sizeof(struct vcd_property_live);
@@ -1558,6 +1562,7 @@ static long vid_enc_ioctl(struct file *file,
 		vcd_status = vcd_set_property(client_ctx->vcd_handle,
 					&vcd_property_hdr, &live_mode);
 		if (vcd_status) {
+			printk("--------vcd_status=%d, mode=%d",vcd_status,metabuffer_mode);
 			pr_err(" Setting metabuffer mode failed");
 			return -EIO;
 		}
