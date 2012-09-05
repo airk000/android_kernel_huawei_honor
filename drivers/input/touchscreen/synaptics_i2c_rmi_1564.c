@@ -40,12 +40,6 @@
 #include <linux/device.h>
 #include <mach/vreg.h>
 #include <mach/gpio.h>
-//#ifdef CONFIG_SHENDU_FEATURE_SLIP2WEAK
-#include <linux/stddef.h>
-//#include <mach/rpc_server_handset.h>
-#include <linux/input/pmic8xxx-keypad.h>
-//#endif
-/*include the .h file*/
 #include <linux/proc_fs.h>
 #include <linux/touch_platform_config.h>
 #ifdef CONFIG_HUAWEI_HW_DEV_DCT
@@ -67,8 +61,6 @@ DEVICE_ATTR(_pre##_##_name,_mode,_pre##_##_name##_show,_pre##_##_name##_store)
 #define BTN_F30 BTN_0
 #define SCROLL_ORIENTATION REL_Y
 
-//#ifdef CONFIG_SHENDU_FEATURE_SLIP2WEAK
-//#define SLIP2WEAK
 #undef SLIP2WEAK
 #ifdef SLIP2WEAK
 static bool enable_slip2weak = true;
@@ -78,9 +70,6 @@ bool slip_loc[3];
 static struct input_dev * s2w_power_dev;
 static DEFINE_MUTEX(s2wpwrlock);
 #endif
-//#else
-//#undef SLIP2WEAK
-//#endif
 
 //#define TS_RMI_DEBUG
 #undef TS_RMI_DEBUG 
@@ -217,14 +206,14 @@ static void s2w_power_key(struct work_struct * s2w_power_press)
 		printk("\n shendu-s2w: s2w_power_dev is avalible!");
 		mutex_trylock(&s2wpwrlock); 
 		printk("\n 11111111111111111");
-		input_event(s2w_power_dev, EV_KEY, KEY_POWER, 1); 	
-		input_event(s2w_power_dev, EV_SYN, 0, 0); 
+	//	input_event(s2w_power_dev, EV_KEY, KEY_POWER, 1); 	
+	//	input_event(s2w_power_dev, EV_SYN, 0, 0); 
 		//input_report_key(s2w_power_dev, KEY_POWER, 1);
 		//input_sync(s2w_power_dev);
 		msleep(200); 
 		printk("\n 00000000000000000");
-		input_event(s2w_power_dev, EV_KEY, KEY_POWER, 0); 
-		input_event(s2w_power_dev, EV_SYN, 0, 0); 
+	//	input_event(s2w_power_dev, EV_KEY, KEY_POWER, 0); 
+	//	input_event(s2w_power_dev, EV_SYN, 0, 0); 
 		//input_report_key(s2w_power_dev, KEY_POWER, 0);
 		//input_sync(s2w_power_dev);	
 		msleep(200);
