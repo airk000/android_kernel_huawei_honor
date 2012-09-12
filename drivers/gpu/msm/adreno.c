@@ -638,6 +638,8 @@ adreno_recover_hang(struct kgsl_device *device)
 	unsigned int soptimestamp;
 	unsigned int eoptimestamp;
 	struct adreno_context *drawctxt;
+	struct kgsl_context *context;
+	int next = 0;
 
 	KGSL_DRV_ERR(device, "Starting recovery from 3D GPU hang....\n");
 	rb_buffer = vmalloc(rb->buffer_desc.size);
@@ -705,6 +707,24 @@ adreno_recover_hang(struct kgsl_device *device)
 		"Context that caused a GPU hang: %x\n", bad_context);
 
 	drawctxt->flags |= CTXT_FLAGS_GPU_HANG;
+
+	/*
+	 * Set the reset status of all contexts to
+	 * INNOCENT_CONTEXT_RESET_EXT except for the bad context
+	 * since thats the guilty party
+	 */
+	while ((context = idr_get_next(&device->context_idr, &next))) {
+		if (KGSL_CTX_STAT_GUILTY_CONTEXT_RESET_EXT !=
+			context->reset_status) {
+			if (context->devctxt != drawctxt)
+				context->reset_status =
+				KGSL_CTX_STAT_INNOCENT_CONTEXT_RESET_EXT;
+			else
+				context->reset_status =
+				KGSL_CTX_STAT_GUILTY_CONTEXT_RESET_EXT;
+		}
+		next = next + 1;
+	}
 
 	/* Restore valid commands in ringbuffer */
 	adreno_ringbuffer_restore(rb, rb_buffer, num_rb_contents);
@@ -868,13 +888,13 @@ int adreno_idle(struct kgsl_device *device, unsigned int timeout)
 	struct adreno_ringbuffer *rb = &adreno_dev->ringbuffer;
 	unsigned int rbbm_status;
 	unsigned long wait_timeout =
-	msecs_to_jiffies(adreno_dev->wait_timeout);
-	/*merge qc patch to fix kgsl issue.*/
+		msecs_to_jiffies(adreno_dev->wait_timeout);
 	unsigned long wait_time;
 	unsigned long wait_time_part;
 	unsigned int msecs;
 	unsigned int msecs_first;
 	unsigned int msecs_part;
+
 	kgsl_cffdump_regpoll(device->id, REG_RBBM_STATUS << 2,
 		0x00000000, 0x80000000);
 	/* first, wait until the CP has consumed all the commands in
@@ -882,7 +902,6 @@ int adreno_idle(struct kgsl_device *device, unsigned int timeout)
 	 */
 retry:
 	if (rb->flags & KGSL_FLAGS_STARTED) {
-		/*merge qc patch to fix kgsl issue.*/
 		msecs = adreno_dev->wait_timeout;
 		msecs_first = (msecs <= 100) ? ((msecs + 4) / 5) : 100;
 		msecs_part = (msecs - msecs_first + 3) / 4;
@@ -988,8 +1007,7 @@ const struct kgsl_memdesc *adreno_find_region(struct kgsl_device *device,
 		if (!kgsl_mmu_pt_equal(priv->pagetable, pt_base))
 			continue;
 		spin_lock(&priv->mem_lock);
-		entry = kgsl_sharedmem_find_region(priv, gpuaddr,
-						sizeof(unsigned int));
+		entry = kgsl_sharedmem_find_region(priv, gpuaddr, size);
 		if (entry) {
 			result = &entry->memdesc;
 			spin_unlock(&priv->mem_lock);

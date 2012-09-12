@@ -310,11 +310,6 @@ int adreno_ringbuffer_start(struct adreno_ringbuffer *rb, unsigned int init_ram)
 	adreno_regwrite(device, REG_SCRATCH_UMSK,
 			     GSL_RB_MEMPTRS_SCRATCH_MASK);
 
-	/* update the eoptimestamp field with the last retired timestamp */
-	kgsl_sharedmem_writel(&device->memstore,
-			     KGSL_DEVICE_MEMSTORE_OFFSET(eoptimestamp),
-			     rb->timestamp);
-
 	/* load the CP ucode */
 
 	status = adreno_ringbuffer_load_pm4_ucode(device);
@@ -755,8 +750,20 @@ int adreno_ringbuffer_extract(struct adreno_ringbuffer *rb,
 			kgsl_sharedmem_readl(&rb->buffer_desc, &value, rb_rptr);
 			rb_rptr = adreno_ringbuffer_inc_wrapped(rb_rptr,
 							rb->buffer_desc.size);
-			BUG_ON((copy_rb_contents == 0) &&
-				(value == cur_context));
+
+			/*
+			 * If other context switches were already lost and
+			 * and the current context is the one that is hanging,
+			 * then we cannot recover.  Print an error message
+			 * and leave.
+			 */
+
+			if ((copy_rb_contents == 0) && (value == cur_context)) {
+				KGSL_DRV_ERR(device, "GPU recovery could not "
+					"find the previous context\n");
+				return -EINVAL;
+			}
+
 			/*
 			 * If we were copying the commands and got to this point
 			 * then we need to remove the 3 commands that appear

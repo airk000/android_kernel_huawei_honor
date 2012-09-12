@@ -42,7 +42,7 @@ static struct kgsl_pwrscale_policy *kgsl_pwrscale_policies[] = {
 #ifdef CONFIG_MSM_SCM
 	&kgsl_pwrscale_policy_tz,
 #endif
-#ifdef CONFIG_MSM_SLEEP_STATS
+#ifdef CONFIG_MSM_SLEEP_STATS_DEVICE
 	&kgsl_pwrscale_policy_idlestats,
 #endif
 	NULL
@@ -89,7 +89,7 @@ static ssize_t pwrscale_policy_show(struct kgsl_device *device, char *buf)
 
 	return ret;
 }
-/*modify the file permission */
+
 PWRSCALE_ATTR(policy, 0664, pwrscale_policy_show, pwrscale_policy_store);
 
 static ssize_t pwrscale_avail_policies_show(struct kgsl_device *device,
@@ -267,8 +267,6 @@ void kgsl_pwrscale_policy_remove_files(struct kgsl_device *device,
 	sysfs_remove_group(&pwrscale->kobj, attr_group);
 	kobject_del(&pwrscale->kobj);
 	kobject_put(&pwrscale->kobj);
-    /* patch for kgsl: power state cleanup */
-	/* pwrscale->kobj.state_initialized = 0; */
 }
 
 static void _kgsl_pwrscale_detach_policy(struct kgsl_device *device)
