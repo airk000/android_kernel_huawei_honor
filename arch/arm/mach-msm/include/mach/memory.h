@@ -38,11 +38,8 @@
 #define EBI0_PHYS_OFFSET PHYS_OFFSET
 #define EBI0_PAGE_OFFSET PAGE_OFFSET
 /* modified for 1G ddr memory support */
-#ifdef CONFIG_HUAWEI_KERNEL
-#define EBI0_SIZE 0x20000000
-#else
+
 #define EBI0_SIZE 0x10000000
-#endif
 
 #define EBI1_PHYS_OFFSET 0x40000000
 #define EBI1_PAGE_OFFSET (EBI0_PAGE_OFFSET + EBI0_SIZE)
