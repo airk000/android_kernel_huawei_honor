@@ -159,7 +159,7 @@ static extra_key_region   touch_extra_key_region =
 /* the value 24 (the gap between touch region and key region)maybe need to modify*/
       {(TS_X_MAX*1/8),   (TS_Y_MAX-TS_KEY_Y_MAX/2+26), TS_X_MAX/10, TS_KEY_Y_MAX/3, KEY_BACK},  /*back key */
        {(TS_X_MAX*3/8),   (TS_Y_MAX-TS_KEY_Y_MAX/2+26), TS_X_MAX/10, TS_KEY_Y_MAX/3, KEY_MENU},  /* menu key */
-       {(TS_X_MAX*5/8),   (TS_Y_MAX-TS_KEY_Y_MAX/2+26), TS_X_MAX/10, TS_KEY_Y_MAX/3, KEY_HOME},  /* KEY_F2,KEY_HOME home key */
+       {(TS_X_MAX*5/8),   (TS_Y_MAX-TS_KEY_Y_MAX/2+26), TS_X_MAX/10, TS_KEY_Y_MAX/3, KEY_HOMEPAGE},  /* KEY_F2,KEY_HOME home key */
        {(TS_X_MAX*7/8),   (TS_Y_MAX-TS_KEY_Y_MAX/2+26), TS_X_MAX/10, TS_KEY_Y_MAX/3, KEY_SEARCH},  /* Search key */
     },
 };

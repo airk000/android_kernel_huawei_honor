@@ -569,20 +569,14 @@ else
 KBUILD_CFLAGS	+= -O2
 endif
 
-#/* < DTS2012020604357 zhangyun 20120206 begin */
-# Add Huawei Marco for different BT chip
 #ifeq ($(ENABLE_BTLA_VER30),true)
 KBUILD_CFLAGS += -DHUAWEI_BT_BTLA_VER30
 #endif
 ifeq ($(ENABLE_BLUEZ_VER30),true)
 KBUILD_CFLAGS += -DHUAWEI_BT_BLUEZ_VER30
 endif
-#/* DTS2012020604357 zhangyun 20120206 end > */
 
-
-# /* <BU5D10533 duangan 2010-5-26 begin */
 KBUILD_CFLAGS	+= -DHUAWEI_KERNEL_VERSION=\"${HUAWEI_KERNEL_VERSION}\"
-# /* BU5D10533 duangan 2010-5-26 end> */
 include $(srctree)/arch/$(SRCARCH)/Makefile
 
 ifneq ($(CONFIG_FRAME_WARN),0)
