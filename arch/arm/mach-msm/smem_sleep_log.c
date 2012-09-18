@@ -1,3 +1,4 @@
+/*< DTS2011062206646 libeibei 20110623 begin */
 /*
  * SMEM Sleep log driver.
  * Allows a user space process to get the SMEM log of sleep.
@@ -247,3 +248,4 @@ static void __exit smem_sleep_log_cleanup(void)
 
 module_init(smem_sleep_log_init);
 module_exit(smem_sleep_log_cleanup);
+/* DTS2011062206646 libeibei 20110623 end >*/

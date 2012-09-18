@@ -1,4 +1,4 @@
-/* Copyright (c) 2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -24,7 +24,7 @@
 #define MAX_RX_URBS			50
 #define RMNET_RX_BUFSIZE		2048
 
-#define STOP_SUBMIT_URB_LIMIT		400
+#define STOP_SUBMIT_URB_LIMIT		500
 #define FLOW_CTRL_EN_THRESHOLD		500
 #define FLOW_CTRL_DISABLE		300
 #define FLOW_CTRL_SUPPORT		1
@@ -157,20 +157,19 @@ static void data_bridge_process_rx(struct work_struct *work)
 	}
 
 	spin_lock_irqsave(&dev->rx_done.lock, flags);
-	if (dev->rx_done.qlen > stop_submit_urb_limit && rx_throttled(brdg)) {
-		spin_unlock_irqrestore(&dev->rx_done.lock, flags);
-		return;
-	}
-
 	while (!list_empty(&dev->rx_idle)) {
+		if (dev->rx_done.qlen > stop_submit_urb_limit)
+			break;
 
 		rx_idle = list_first_entry(&dev->rx_idle, struct urb, urb_list);
 		list_del(&rx_idle->urb_list);
 		spin_unlock_irqrestore(&dev->rx_done.lock, flags);
 		retval = submit_rx_urb(dev, rx_idle, GFP_KERNEL);
 		spin_lock_irqsave(&dev->rx_done.lock, flags);
-		if (retval)
+		if (retval) {
+			list_add_tail(&rx_idle->urb_list, &dev->rx_idle);
 			break;
+		}
 	}
 	spin_unlock_irqrestore(&dev->rx_done.lock, flags);
 }
@@ -232,10 +231,8 @@ static int submit_rx_urb(struct data_bridge *dev, struct urb *rx_urb,
 	int		retval = -EINVAL;
 
 	skb = alloc_skb(RMNET_RX_BUFSIZE, flags);
-	if (!skb) {
-		usb_free_urb(rx_urb);
+	if (!skb)
 		return -ENOMEM;
-	}
 
 	*((struct data_bridge **)skb->cb) = dev;
 
@@ -256,7 +253,7 @@ fail:
 	usb_unanchor_urb(rx_urb);
 suspended:
 	dev_kfree_skb_any(skb);
-	usb_free_urb(rx_urb);
+
 	return retval;
 }
 
@@ -448,6 +445,8 @@ int data_bridge_write(unsigned int id, struct sk_buff *skb)
 		return -ENODEV;
 
 	brdg = dev->brdg;
+	if (!brdg)
+		return -ENODEV;
 
 	dev_dbg(&dev->udev->dev, "%s: write (%d bytes)\n", __func__, skb->len);
 
@@ -765,7 +764,7 @@ bridge_probe(struct usb_interface *iface, const struct usb_device_id *id)
 	int				i;
 	int				status = 0;
 	int				numends;
-	int				iface_num;
+	unsigned int			iface_num;
 
 	iface_num = iface->cur_altsetting->desc.bInterfaceNumber;
 
@@ -778,8 +777,8 @@ bridge_probe(struct usb_interface *iface, const struct usb_device_id *id)
 	udev = interface_to_usbdev(iface);
 	usb_get_dev(udev);
 
-	if (iface_num != DUN_IFACE_NUM && iface_num != TETHERED_RMNET_IFACE_NUM)
-		return 0;
+	if (!test_bit(iface_num, &id->driver_info))
+		return -ENODEV;
 
 	numends = iface->cur_altsetting->desc.bNumEndpoints;
 	for (i = 0; i < numends; i++) {
@@ -816,6 +815,7 @@ bridge_probe(struct usb_interface *iface, const struct usb_device_id *id)
 		dev_err(&udev->dev, "ctrl_bridge_probe failed %d\n", status);
 		goto free_data_bridge;
 	}
+
 	ch_id++;
 
 	return 0;
@@ -837,16 +837,11 @@ static void bridge_disconnect(struct usb_interface *intf)
 	struct list_head	*head;
 	struct urb		*rx_urb;
 	unsigned long		flags;
-	int			iface_num;
 
 	if (!dev) {
 		err("%s: data device not found\n", __func__);
 		return;
 	}
-
-	iface_num = intf->cur_altsetting->desc.bInterfaceNumber;
-	if (iface_num != DUN_IFACE_NUM && iface_num != TETHERED_RMNET_IFACE_NUM)
-		return;
 
 	ch_id--;
 	ctrl_bridge_disconnect(ch_id);
@@ -871,12 +866,24 @@ static void bridge_disconnect(struct usb_interface *intf)
 	kfree(dev);
 }
 
+/*bit position represents interface number*/
+#define PID9001_IFACE_MASK	0xC
+#define PID9034_IFACE_MASK	0xC
+#define PID9048_IFACE_MASK	0x18
+
 static const struct usb_device_id bridge_ids[] = {
-	{ USB_DEVICE(0x5c6, 0x9001) },
+	{ USB_DEVICE(0x5c6, 0x9001),
+	.driver_info = PID9001_IFACE_MASK,
+	},
+	{ USB_DEVICE(0x5c6, 0x9034),
+	.driver_info = PID9034_IFACE_MASK,
+	},
+	{ USB_DEVICE(0x5c6, 0x9048),
+	.driver_info = PID9048_IFACE_MASK,
+	},
 
 	{ } /* Terminating entry */
 };
-
 MODULE_DEVICE_TABLE(usb, bridge_ids);
 
 static struct usb_driver bridge_driver = {

@@ -52,6 +52,4 @@ struct synaptics_i2c_rmi_platform_data {
 	int8_t sensitivity_adjust;
 };
 
-extern void s2w_setdev(struct input_dev * input_device);
-
 #endif /* _LINUX_SYNAPTICS_I2C_RMI_H */

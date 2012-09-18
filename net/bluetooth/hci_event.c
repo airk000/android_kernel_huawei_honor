@@ -21,6 +21,7 @@
    COPYRIGHTS, TRADEMARKS OR OTHER RIGHTS, RELATING TO USE OF THIS
    SOFTWARE IS DISCLAIMED.
 */
+/*DTS2012051403908 sihongfang 20120515 modify for roll back qcom bluetooth stack*/
 
 /* Bluetooth HCI event handling. */
 
@@ -1326,6 +1327,14 @@ static void hci_cs_exit_sniff_mode(struct hci_dev *hdev, __u8 status)
 	if (conn) {
 		clear_bit(HCI_CONN_MODE_CHANGE_PEND, &conn->pend);
 
+		/* < DTS2012011905684 zhangyun 20120202 begin */                
+        // when exit sniffer mode cmd failed error code equal 12 means command diallowed, we don't setup sco link.
+        if (12 == status) {
+            hci_dev_unlock(hdev);
+            return;
+        }
+		/* DTS2012011905684 zhangyun 20120202 end > */
+
 		if (test_and_clear_bit(HCI_CONN_SCO_SETUP_PEND, &conn->pend))
 			hci_sco_setup(conn, status);
 	}
@@ -1624,6 +1633,7 @@ static inline void hci_conn_complete_evt(struct hci_dev *hdev, struct sk_buff *s
 							sizeof(cp), &cp);
 		}
 
+/* < DTS2011081800775 xuhui 20110913 begin */                
 #ifdef CONFIG_HUAWEI_KERNEL
         /*If there are more than 1 ACL connections,
         *we should try to switch to master for BCM bt chip performance
@@ -1646,6 +1656,7 @@ static inline void hci_conn_complete_evt(struct hci_dev *hdev, struct sk_buff *s
             }
         }
 #endif
+/* DTS2011081800775 xuhui 20110913 end > */
 
 	} else {
 		conn->state = BT_CLOSED;
@@ -1961,6 +1972,7 @@ static inline void hci_remote_features_evt(struct hci_dev *hdev, struct sk_buff 
 							sizeof(cp), &cp);
 		goto unlock;
 	} else {
+        /* < DTS2011061704331 kangyanjun 20110620 begin */
         if (!(conn->features[3]&(0x02|0x04)))   /* not support 2M/3M EDR. 0x02=2M  0x04=3M */
         {                    
             if (!(conn->link_mode & HCI_LM_MASTER)) /* act as slave */
@@ -1998,6 +2010,7 @@ static inline void hci_remote_features_evt(struct hci_dev *hdev, struct sk_buff 
                 hci_send_cmd(conn->hdev, HCI_OP_WRITE_LINK_POLICY, sizeof(cp), &cp);
             }
         }                        
+        /* DTS2011061704331 kangyanjun 20110620 end > */
 	}
 
 	if (!ev->status) {
@@ -2032,7 +2045,9 @@ static inline void hci_cmd_complete_evt(struct hci_dev *hdev, struct sk_buff *sk
 {
 	struct hci_ev_cmd_complete *ev = (void *) skb->data;
 	__u16 opcode;
+    /* < DTS2011070200434  sihongfang 20110702 begin */
     extern unsigned char fm_command_pending;
+    /* DTS2011070200434  sihongfang 20110702 end > */
 
 	skb_pull(skb, sizeof(*ev));
 
@@ -2226,11 +2241,15 @@ static inline void hci_cmd_complete_evt(struct hci_dev *hdev, struct sk_buff *sk
 
 	default:
 		BT_DBG("%s opcode 0x%x", hdev->name, opcode);
+        /* < DTS2011070200434  sihongfang 20110702 begin */
+        /* < DTS2011062302029  yangyuan 20110627 begin */
         //delete
         if (opcode == 0xfc15) //0xfc15 means fm cmd
         {
             fm_command_pending = 0;
         }
+        /* DTS2011062302029  yangyuan 20110627 end > */
+        /* DTS2011070200434  sihongfang 20110702 end > */
 		break;
 	}
 
@@ -2365,6 +2384,7 @@ static inline void hci_role_change_evt(struct hci_dev *hdev, struct sk_buff *skb
 			if (ev->role)
 				conn->link_mode &= ~HCI_LM_MASTER;
 			else
+            /* < DTS2011061704331 kangyanjun 20110620 begin */
             {
                 conn->link_mode |= HCI_LM_MASTER;
                 if (!(conn->features[3]&(0x02|0x04)))   /* not support 2M/3M EDR. 0x02=2M  0x04=3M */
@@ -2382,6 +2402,7 @@ static inline void hci_role_change_evt(struct hci_dev *hdev, struct sk_buff *skb
                     hci_send_cmd(conn->hdev, HCI_OP_WRITE_LINK_POLICY, sizeof(cp), &cp);
                 }
             }
+            /* DTS2011061704331 kangyanjun 20110620 end > */
 		}
 
 		clear_bit(HCI_CONN_RSWITCH_PEND, &conn->pend);

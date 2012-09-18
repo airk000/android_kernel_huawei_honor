@@ -1,7 +1,7 @@
 /* arch/arm/mach-msm/include/mach/board.h
  *
  * Copyright (C) 2007 Google, Inc.
- * Copyright (c) 2008-2011, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2008-2012, Code Aurora Forum. All rights reserved.
  * Author: Brian Swetland <swetland@google.com>
  *
  * This software is licensed under the terms of the GNU General Public
@@ -61,7 +61,18 @@ struct msm_camera_device_platform_data {
 	struct msm_camera_io_ext ioext;
 	struct msm_camera_io_clk ioclk;
 	uint8_t csid_core;
+	uint8_t is_csiphy;
+	uint8_t is_csic;
+	uint8_t is_csid;
+	uint8_t is_ispif;
+	uint8_t is_vpe;
 	struct msm_bus_scale_pdata *cam_bus_scale_table;
+/*< DTS2012020400396 zhangyu 20120206 begin */
+/*< DTS2011111602756 yuguangcai 20111206 begin */
+#ifdef CONFIG_HUAWEI_CAMERA  
+	bool (*get_board_support_flash) (void);
+#endif
+/* DTS2011111602756 yuguangcai 20111206 end > */
 };
 enum msm_camera_csi_data_format {
 	CSI_8BIT,
@@ -167,26 +178,43 @@ enum msm_camera_type {
 	BACK_CAMERA_INT_3D,
 };
 
-struct msm8960_privacy_light_cfg {
-	unsigned mpp;
+enum camera_vreg_type {
+	REG_LDO,
+	REG_VS,
 };
 
-struct msm_camera_sensor_platform_info {
-	int mount_angle;
-	int sensor_reset_enable;
-	int sensor_reset;
-	int sensor_pwd;
-	int vcm_pwd;
-	int vcm_enable;
-	int privacy_light;
-	void *privacy_light_info;
+struct camera_vreg_t {
+	char *reg_name;
+	enum camera_vreg_type type;
+	int min_voltage;
+	int max_voltage;
+	int op_mode;
+};
+
+struct msm_gpio_set_tbl {
+	unsigned gpio;
+	unsigned long flags;
+	uint32_t delay;
 };
 
 struct msm_camera_gpio_conf {
 	void *cam_gpiomux_conf_tbl;
 	uint8_t cam_gpiomux_conf_tbl_size;
-	uint16_t *cam_gpio_tbl;
-	uint8_t cam_gpio_tbl_size;
+	struct gpio *cam_gpio_common_tbl;
+	uint8_t cam_gpio_common_tbl_size;
+	struct gpio *cam_gpio_req_tbl;
+	uint8_t cam_gpio_req_tbl_size;
+	struct msm_gpio_set_tbl *cam_gpio_set_tbl;
+	uint8_t cam_gpio_set_tbl_size;
+};
+
+struct msm_camera_sensor_platform_info {
+	int mount_angle;
+	int sensor_reset;
+	struct camera_vreg_t *cam_vreg;
+	int num_vreg;
+	int32_t (*ext_power_ctrl) (int enable);
+	struct msm_camera_gpio_conf *gpio_conf;
 };
 
 struct msm_actuator_info {
@@ -196,6 +224,7 @@ struct msm_actuator_info {
 	int vcm_enable;
 };
 
+/*<BU5D08108, lijuan 00152865, 20100419 begin*/
 #ifdef CONFIG_HUAWEI_CAMERA
 struct msm_camera_sensor_vreg {
 	const char *vreg_name;
@@ -203,16 +232,10 @@ struct msm_camera_sensor_vreg {
     uint8_t always_on;
 };
 #endif 
+/* BU5D08108, lijuan 00152865, 20100419 end> */
 
 struct msm_camera_sensor_info {
 	const char *sensor_name;
-	#ifdef CONFIG_HUAWEI_CAMERA
-	struct msm_camera_sensor_vreg *sensor_vreg;
-	uint8_t vreg_num;
-	int32_t (*vreg_enable_func) (struct msm_camera_sensor_vreg*,uint8_t);
-	int32_t (*vreg_disable_func)(struct msm_camera_sensor_vreg*,uint8_t);
-	int slave_sensor;
-	#endif
 	int sensor_reset_enable;
 	int sensor_reset;
 	int sensor_pwd;
@@ -229,9 +252,32 @@ struct msm_camera_sensor_info {
 	struct msm_camera_csi_params csi_params;
 	struct msm_camera_sensor_strobe_flash_data *strobe_flash_data;
 	char *eeprom_data;
-	struct msm_camera_gpio_conf *gpio_conf;
 	enum msm_camera_type camera_type;
 	struct msm_actuator_info *actuator_info;
+	/*< DTS2011121001804 yuguangcai 20111227 begin */
+	#ifdef CONFIG_HUAWEI_CAMERA
+	/*we can stop camera probe after one probe succeed via the variable*/
+	int slave_sensor;
+	/*< DTS2012012901317 yuguangcai 20120131 begin */
+	/*funcs for camera sensor to enable and disable power*/
+	void (*vreg_enable_func) (int);
+	void (*vreg_disable_func) (int);
+	/* < DTS2012031403324 zhouqiwei 20120314 begin */
+	/* set_s5k5ca_is_on used to set whether s5k5ca is on or not 
+	 * get_s5k5ca_is_on used to get whether s5k5ca is on or not
+	 */
+	void (*set_s5k5ca_is_on)(int);
+	int  (*get_s5k5ca_is_on)(void);
+	/* DTS2012031403324 zhouqiwei 20120314 end > */
+	/* DTS2012012901317 yuguangcai 20120131 end > */
+	#endif
+	/* DTS2011121001804 yuguangcai 20111227 end > */
+};
+/* DTS2012020400396 zhangyu 20120206 end > */
+
+struct msm_camera_board_info {
+	struct i2c_board_info *board_info;
+	uint8_t num_i2c_board_info;
 };
 
 int msm_get_cam_resources(struct msm_camera_sensor_info *);
@@ -326,8 +372,12 @@ struct msm_panel_common_pdata {
 	struct msm_bus_scale_pdata *mdp_bus_scale_table;
 #endif
 	int mdp_rev;
-	int (*writeback_offset)(void);
+	u32 ov0_wb_size;  /* overlay0 writeback size */
+	u32 ov1_wb_size;  /* overlay1 writeback size */
+	u32 mem_hid;
 };
+
+
 
 struct lcdc_platform_data {
 	int (*lcdc_gpio_config)(int on);
@@ -421,6 +471,7 @@ struct msm_vidc_platform_data {
 	int memtype;
 	u32 enable_ion;
 	int disable_dmx;
+	int disable_fullhd;
 #ifdef CONFIG_MSM_BUS_SCALING
 	struct msm_bus_scale_pdata *vidc_bus_client_pdata;
 #endif
@@ -451,17 +502,23 @@ void msm_map_copper_io(void);
 void msm_init_irq(void);
 void msm_copper_init_irq(void);
 void vic_handle_irq(struct pt_regs *regs);
+void msm_copper_reserve(void);
+void msm_copper_very_early(void);
 
 struct mmc_platform_data;
 int msm_add_sdcc(unsigned int controller,
 		struct mmc_platform_data *plat);
+/* <BU5D08126 duangan 2010-4-24 begin */
 #ifdef CONFIG_HUAWEI_FEATURE_OEMINFO
 int __init rmt_oeminfo_add_device(void);
 #endif
+/* BU5D08126 duangan 2010-4-24 end> */
 
+/* <DTS2010092002892 duangan 20100926 begin */
 #ifdef CONFIG_HUAWEI_KERNEL
 int __init hw_extern_sdcard_add_device(void);
 #endif
+/* DTS2010092002892 duangan 20100926 end> */
 
 struct msm_usb_host_platform_data;
 int msm_add_host(unsigned int host,
@@ -481,12 +538,16 @@ void msm_snddev_hsed_voltage_on(void);
 void msm_snddev_hsed_voltage_off(void);
 void msm_snddev_tx_route_config(void);
 void msm_snddev_tx_route_deconfig(void);
+/*< DTS2010120204486 dongchen 20101223 begin */
 #ifdef CONFIG_HUAWEI_KERNEL
 void msm_snddev_poweramp_4music_on(void);
+/*<DTS2011060201308 yanghaimin 20110602, begin*/
 /* u8860 add hac gpio ctl */
 void msm_snddev_hac_on(void);
 void msm_snddev_hac_off(void);
+/* DTS2011060201308 yanghaimin 20110602, end>*/
 #endif
+/* DTS2010120204486 dongchen 20101223 end >*/
 
 extern unsigned int msm_shared_ram_phys; /* defined in arch/arm/mach-msm/io.c */
 

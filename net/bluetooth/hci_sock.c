@@ -21,6 +21,7 @@
    COPYRIGHTS, TRADEMARKS OR OTHER RIGHTS, RELATING TO USE OF THIS
    SOFTWARE IS DISCLAIMED.
 */
+/*DTS2012051403908 sihongfang 20120515 modify for roll back qcom bluetooth stack*/
 
 /* Bluetooth HCI sockets. */
 
@@ -49,8 +50,12 @@
 #include <net/bluetooth/bluetooth.h>
 #include <net/bluetooth/hci_core.h>
 
+/* < DTS2011070200434  sihongfang 20110702 begin */
+/* < DTS2011062302029  yangyuan 20110627 begin */
 //#define BT_DBG(fmt, arg...)  printk(KERN_ERR "%s: " fmt "\n" , __func__ , ## arg)
+/* DTS2011062302029  yangyuan 20110627 end > */
 unsigned char fm_command_pending = 0;
+/* DTS2011070200434  sihongfang 20110702 end > */
 static int enable_mgmt = 1;
 
 /* ----- HCI socket interface ----- */
@@ -580,6 +585,8 @@ static int hci_sock_sendmsg(struct kiocb *iocb, struct socket *sock,
 		u16 ogf = hci_opcode_ogf(opcode);
 		u16 ocf = hci_opcode_ocf(opcode);
 
+        /* < DTS2011070200434  sihongfang 20110702 begin */
+        /* < DTS2011062302029  yangyuan 20110627 begin */
         /* 4329 FM VSC checking, 0xfc15 means fm cmd */
         if (opcode == 0xfc15) {
             while (fm_command_pending == 1) 
@@ -589,8 +596,15 @@ static int hci_sock_sendmsg(struct kiocb *iocb, struct socket *sock,
             }
             fm_command_pending = 1;
         }        
+        /* DTS2011062302029  yangyuan 20110627 end > */
+        /* DTS2011070200434  sihongfang 20110702 end > */
             
-		//delete six lines
+		if (((ogf > HCI_SFLT_MAX_OGF) ||
+				!hci_test_bit(ocf & HCI_FLT_OCF_BITS, &hci_sec_filter.ocf_mask[ogf])) &&
+					!capable(CAP_NET_RAW)) {
+			err = -EPERM;
+			goto drop;
+		}
 
 		if (test_bit(HCI_RAW, &hdev->flags) || (ogf == 0x3f)) {
 			skb_queue_tail(&hdev->raw_q, skb);

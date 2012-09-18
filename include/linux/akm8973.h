@@ -34,12 +34,14 @@
 #define AKECS_REG_EHXGA			0x66   /*Magnetic sensor X-axis DAC E2PROME gain register*/
 #define AKECS_REG_EHYGA			0x67   /*Magnetic sensor Y-axis DAC E2PROME gain register*/
 #define AKECS_REG_EHZGA			0x68   /*Magnetic sensor Z-axis DACE2PROME  gain register*/
+/*BK4D03309, update firmware for compass, dingxifeng dKF14049,2009-7-30 start*/ 
 
 #define  AKECS_REG_ETS				0x62	/* Offset adjustment for temperature sensor*/
 #define  AKECS_REG_EVIR				0x63	/* VREF &IREF adjustment value*/
 #define  AKECS_REG_EIHE				0x64	/*HE drive power supply correction value*/
 #define  AKECS_REG_ETST				0x65	/*for testing the value is 0xC7*/
 
+/*BK4D03309, update firmware for compass, dingxifeng dKF14049,2009-7-30 end*/ 
 #define AKMIO				0xA1
 
 /* IOCTLs for AKM library */
@@ -72,11 +74,15 @@
 #define ECS_IOCTL_APP_GET_MVFLAG	_IOR(AKMIO, 0x1A, short)	/* Get raw magnetic vector flag */
 /* huawei liujinggang 20101201 end */
 
+/* < BU5D05131 gaohuajiang 20100318 begin */
 #define ECS_IOCTL_APP_GET_LFLAG		_IOR(AKMIO, 0x1B, short)
 #define ECS_IOCTL_APP_SET_LFLAG		_IOW(AKMIO, 0x1C, short)
 #define ECS_IOCTL_APP_GET_PFLAG		_IOR(AKMIO, 0x1D, short)
 #define ECS_IOCTL_APP_SET_PFLAG		_IOW(AKMIO, 0x1E, short)
+/* BU5D05131 gaohuajiang 20100318 end > */
+/* < DTS2011042703449  liujinggang 20110427 begin */
 #define ECS_IOCTL_APP_GET_DEVID 	_IOR(AKMIO, 0x1F, char[20])
+/* DTS2011042703449  liujinggang 20110427 end > */
 struct akm8973_platform_data {
 	short layouts[4][3][3];
 	char project_name[64];

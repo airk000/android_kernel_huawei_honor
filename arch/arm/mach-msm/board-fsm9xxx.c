@@ -51,7 +51,14 @@
 #define PMIC_GPIO_SD_DET	165
 
 #define GPIO_EPHY_RST_N		37
-
+#define GPIO_MAC_TXD_3      119
+#define GPIO_MAC_TXD_2      120
+#define GPIO_MAC_TXD_1      121
+#define GPIO_MAC_TXD_0      122
+#define GPIO_MAC_TX_EN      123
+#define GPIO_MAC_MDIO       127
+#define GPIO_MAC_MDC        128
+#define GPIO_MAC_TX_CLK     133
 #define GPIO_GRFC_FTR0_0	136 /* GRFC 20 */
 #define GPIO_GRFC_FTR0_1	137 /* GRFC 21 */
 #define GPIO_GRFC_FTR1_0	145 /* GRFC 22 */
@@ -472,7 +479,23 @@ static int __init buses_init(void)
 
 static struct msm_gpio phy_config_data[] = {
 	{ GPIO_CFG(GPIO_EPHY_RST_N, 0, GPIO_CFG_OUTPUT,
-		GPIO_CFG_NO_PULL, GPIO_CFG_2MA), "MAC_RST_N" },
+		GPIO_CFG_NO_PULL, GPIO_CFG_8MA), "MAC_RST_N" },
+	{ GPIO_CFG(GPIO_MAC_TXD_3, 0, GPIO_CFG_OUTPUT,
+		GPIO_CFG_NO_PULL, GPIO_CFG_8MA), "MAC_TXD_3"},
+	{ GPIO_CFG(GPIO_MAC_TXD_2, 0, GPIO_CFG_OUTPUT,
+		GPIO_CFG_NO_PULL, GPIO_CFG_8MA), "MAC_TXD_2"},
+	{ GPIO_CFG(GPIO_MAC_TXD_1, 0, GPIO_CFG_OUTPUT,
+		GPIO_CFG_NO_PULL, GPIO_CFG_8MA), "MAC_TXD_1"},
+	{ GPIO_CFG(GPIO_MAC_TXD_0, 0, GPIO_CFG_OUTPUT,
+		GPIO_CFG_NO_PULL, GPIO_CFG_8MA), "MAC_TXD_0"},
+	{ GPIO_CFG(GPIO_MAC_TX_EN, 0, GPIO_CFG_OUTPUT,
+		GPIO_CFG_NO_PULL, GPIO_CFG_8MA), "MAC_TX_EN"},
+	{ GPIO_CFG(GPIO_MAC_TX_CLK, 0, GPIO_CFG_OUTPUT,
+		GPIO_CFG_NO_PULL, GPIO_CFG_10MA), "MAC_TX_CLK"},
+	{ GPIO_CFG(GPIO_MAC_MDIO, 0, GPIO_CFG_OUTPUT,
+		GPIO_CFG_NO_PULL, GPIO_CFG_6MA), "MDIO_MAC_MDIO"},
+	{ GPIO_CFG(GPIO_MAC_MDC, 0, GPIO_CFG_OUTPUT,
+		GPIO_CFG_NO_PULL, GPIO_CFG_6MA), "MDC_MAC_MDC"},
 };
 
 static int __init phy_init(void)
@@ -673,6 +696,7 @@ static struct msm_ce_hw_support qcrypto_ce_hw_suppport = {
 	.shared_ce_resource = QCE_NO_SHARE_CE_RESOURCE,
 	.hw_key_support = QCE_NO_HW_KEY_SUPPORT,
 	.sha_hmac = QCE_NO_SHA_HMAC_SUPPORT,
+	.bus_scale_table = NULL,
 };
 
 struct platform_device qcrypto_device = {
@@ -723,6 +747,7 @@ static struct msm_ce_hw_support qcedev_ce_hw_suppport = {
 	.shared_ce_resource = QCE_NO_SHARE_CE_RESOURCE,
 	.hw_key_support = QCE_NO_HW_KEY_SUPPORT,
 	.sha_hmac = QCE_NO_SHA_HMAC_SUPPORT,
+	.bus_scale_table = NULL,
 };
 
 static struct platform_device qcedev_device = {
@@ -894,6 +919,7 @@ MACHINE_START(FSM9XXX_SURF, "QCT FSM9XXX")
 	.boot_params = PHYS_OFFSET + 0x100,
 	.map_io = fsm9xxx_map_io,
 	.init_irq = fsm9xxx_init_irq,
+	.handle_irq = vic_handle_irq,
 	.init_machine = fsm9xxx_init,
 	.timer = &msm_timer,
 MACHINE_END

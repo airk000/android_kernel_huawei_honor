@@ -14,10 +14,12 @@
 #include <linux/typecheck.h>
 #include <asm/irqflags.h>
 
+/* <DTS2012021001488 yuanjintao 20120210 begin */
 /* merge qcom DEBUG_CODE for RPC crashes */
 #ifdef CONFIG_HUAWEI_RPC_CRASH_DEBUG
-extern int htc_debug_irq_disabled;
+extern int hw_debug_irq_disabled;
 #endif
+/* DTS2012021001488 yuanjintao 20120210 end> */
 
 #ifdef CONFIG_TRACE_IRQFLAGS
   extern void trace_softirqs_on(unsigned long ip);
@@ -91,6 +93,7 @@ extern int htc_debug_irq_disabled;
  * if !TRACE_IRQFLAGS.
  */
 #ifdef CONFIG_TRACE_IRQFLAGS_SUPPORT
+/* <DTS2012021001488 yuanjintao 20120210 begin */
 /* merge qcom DEBUG_CODE for RPC crashes */
 #ifndef CONFIG_HUAWEI_RPC_CRASH_DEBUG
 #define local_irq_enable() \
@@ -98,7 +101,7 @@ extern int htc_debug_irq_disabled;
 #else
 #define local_irq_enable() \
 	do { \
-		htc_debug_irq_disabled = 0; \
+		hw_debug_irq_disabled = 0; \
 		trace_hardirqs_on(); \
 		raw_local_irq_enable(); \
 		} while (0)
@@ -110,12 +113,12 @@ extern int htc_debug_irq_disabled;
 #else
 #define local_irq_disable() \
 	do { \
-		htc_debug_irq_disabled = 1; \
+		hw_debug_irq_disabled = 1; \
 		raw_local_irq_disable(); \
 		trace_hardirqs_off(); \
 		} while (0)
 #endif
-
+/* DTS2012021001488 yuanjintao 20120210 end> */
 
 #define local_irq_save(flags)				\
 	do {						\

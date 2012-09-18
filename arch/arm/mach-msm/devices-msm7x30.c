@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2008 Google, Inc.
- * Copyright (c) 2008-2011, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2008-2012, Code Aurora Forum. All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -20,6 +20,7 @@
 #include <linux/msm_kgsl.h>
 #include <linux/android_pmem.h>
 #include <linux/regulator/machine.h>
+#include <linux/init.h>
 #include <mach/irqs.h>
 #include <mach/msm_iomap.h>
 #include <mach/dma.h>
@@ -774,6 +775,7 @@ int __init msm_add_sdcc(unsigned int controller, struct mmc_platform_data *plat)
 	pdev->dev.platform_data = plat;
 	return platform_device_register(pdev);
 }
+/* <BU5D08126 duangan 2010-4-24 begin */
 #ifdef CONFIG_HUAWEI_FEATURE_OEMINFO
 static struct resource rmt_oeminfo_resources[] = {
        {
@@ -794,7 +796,9 @@ int __init rmt_oeminfo_add_device(void)
   return 0;
 }
 #endif
+/* BU5D08126 duangan 2010-4-24 end> */
 
+/* <DTS2010092002892 duangan 20100926 begin */
 #ifdef CONFIG_HUAWEI_KERNEL
 static struct resource hw_extern_sdcard_resources[] = {
        {
@@ -808,6 +812,7 @@ static struct platform_device hw_extern_sdcard_device = {
        .num_resources  = ARRAY_SIZE(hw_extern_sdcard_resources),
        .resource       = hw_extern_sdcard_resources,
 };
+/* <DTS2011062802725 zhengzhechu 20110630 begin */
 static struct resource hw_extern_sdcardMounted_resources[] = {
        {
 		.flags  = IORESOURCE_MEM,
@@ -820,13 +825,17 @@ static struct platform_device hw_extern_sdcardMounted_device = {
        .num_resources  = ARRAY_SIZE(hw_extern_sdcardMounted_resources),
        .resource       = hw_extern_sdcardMounted_resources,
 };
+/* DTS2011062802725 zhengzhechu 20110630 end> */
 int __init hw_extern_sdcard_add_device(void)
 {
   platform_device_register(&hw_extern_sdcard_device);
+/* <DTS2011062802725 zhengzhechu 20110630 begin */  
   platform_device_register(&hw_extern_sdcardMounted_device);
+/* DTS2011062802725 zhengzhechu 20110630 end> */
   return 0;
 }
 #endif
+/* DTS2010092002892 duangan 20100926 end> */
 
 static struct resource msm_vidc_720p_resources[] = {
 	{
@@ -1175,6 +1184,7 @@ static struct kgsl_device_platform_data kgsl_3d0_pdata = {
 	.set_grp_async = set_grp3d_async,
 	.idle_timeout = HZ/20,
 	.nap_allowed = true,
+	.idle_needed = true,
 	.clk_map = KGSL_CLK_SRC | KGSL_CLK_CORE |
 		KGSL_CLK_IFACE | KGSL_CLK_MEM,
 };
@@ -1217,6 +1227,7 @@ static struct kgsl_device_platform_data kgsl_2d0_pdata = {
 	.set_grp_async = NULL,
 	.idle_timeout = HZ/10,
 	.nap_allowed = true,
+	.idle_needed = true,
 	.clk_map = KGSL_CLK_CORE | KGSL_CLK_IFACE,
 };
 
@@ -1240,3 +1251,29 @@ struct platform_device *msm_footswitch_devices[] = {
 	FS_PCOM(FS_VPE,    "fs_vpe"),
 };
 unsigned msm_num_footswitch_devices = ARRAY_SIZE(msm_footswitch_devices);
+
+static struct resource gpio_resources[] = {
+	{
+		.start	= INT_GPIO_GROUP1,
+		.flags	= IORESOURCE_IRQ,
+	},
+	{
+		.start	= INT_GPIO_GROUP2,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+static struct platform_device msm_device_gpio = {
+	.name		= "msmgpio",
+	.id		= -1,
+	.resource	= gpio_resources,
+	.num_resources	= ARRAY_SIZE(gpio_resources),
+};
+
+static int __init msm7630_init_gpio(void)
+{
+	platform_device_register(&msm_device_gpio);
+	return 0;
+}
+
+postcore_initcall(msm7630_init_gpio);

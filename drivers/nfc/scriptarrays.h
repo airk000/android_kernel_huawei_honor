@@ -1,3 +1,5 @@
+/* < DTS2011042602168 caomingxing 20110426 begin */
+/* < DTS2011011904316 genghua 20110121 begin */
 /* This file is imported by genghua in order to 
  * support temp nfc test before the HAL and the Up-level code
  * is added to our project.
@@ -43,7 +45,11 @@ extern SINGLE_CMD_LINE SWPPBTFENABLE_ARRAY[];
 extern SINGLE_CMD_LINE SIMPLERESET_ARRAY[];
 extern SINGLE_CMD_LINE IRQCONFIG_ARRAY[];
 extern SINGLE_CMD_LINE TICCONFIG_ARRAY[];
+/* < DTS2011012604950 genghua 20110126 begin */
 extern SINGLE_CMD_LINE STANDBY_ARRAY[];
+/* DTS2011012604950 genghua 20110126 end >*/
 
 #endif
 
+/* DTS2011011904316 genghua 20110121 end >*/
+/* DTS2011042602168 caomingxing 20110426 end > */

@@ -1,4 +1,6 @@
-obj-y += io.o dma.o memory.o
+#/*< DTS2012011904543 lijianzhao 20120119 begin */
+obj-y += io.o dma.o memory.o hardware_self_adapt.o
+#/* DTS2012011904543 lijianzhao 20120119 end >*/
 ifndef CONFIG_ARM_ARCH_TIMER
 obj-y += timer.o
 endif
@@ -39,22 +41,17 @@ ifdef CONFIG_ARCH_QSD8X50
 endif
 
 obj-$(CONFIG_SMP) += headsmp.o platsmp.o
+obj-$(CONFIG_HOTPLUG_CPU) += hotplug.o
 
 obj-$(CONFIG_MSM_CPU_AVS) += avs.o
 obj-$(CONFIG_MSM_AVS_HW) += avs_hw.o
 obj-$(CONFIG_CPU_V6) += idle-v6.o
 obj-$(CONFIG_CPU_V7) += idle-v7.o
-obj-$(CONFIG_MSM_JTAG_V7) += jtag-v7.o
+obj-$(CONFIG_MSM_JTAG) += jtag.o
 
-msm-etm-objs := cp14.o etm.o
+msm-etm-objs := etm.o
 obj-$(CONFIG_MSM_ETM) += msm-etm.o
-
-ifdef CONFIG_MSM_QDSS
-	obj-y += qdss-debug.o
-	obj-y += qdss-etb.o qdss-tpiu.o
-	obj-y += qdss-funnel.o
-	obj-y += qdss-ptm.o
-endif
+obj-$(CONFIG_MSM_QDSS) += qdss.o qdss-etb.o qdss-tpiu.o qdss-funnel.o qdss-etm.o
 
 quiet_cmd_mkrpcsym = MKCAP   $@
       cmd_mkrpcsym = $(PERL) $(srctree)/$(src)/mkrpcsym.pl $< $@
@@ -73,6 +70,9 @@ obj-$(CONFIG_ARCH_MSM8960) += peripheral-reset-8960.o
 endif
 obj-$(CONFIG_MSM_PIL_QDSP6V3) += pil-q6v3.o
 obj-$(CONFIG_MSM_PIL_QDSP6V4) += pil-q6v4.o
+obj-$(CONFIG_MSM_PIL_RIVA) += pil-riva.o
+obj-$(CONFIG_MSM_PIL_TZAPPS) += pil-tzapps.o
+obj-$(CONFIG_MSM_PIL_MODEM) += pil-modem.o
 obj-$(CONFIG_ARCH_QSD8X50) += sirc.o
 obj-$(CONFIG_ARCH_FSM9XXX) += sirc-fsm9xxx.o
 obj-$(CONFIG_MSM_FIQ_SUPPORT) += fiq_glue.o
@@ -142,27 +142,24 @@ obj-$(CONFIG_MSM_QDSP6) += qdsp6/
 obj-$(CONFIG_MSM8X60_AUDIO) += qdsp6v2/
 obj-$(CONFIG_MSM_AUDIO_QDSP6) += qdsp6v2/
 obj-$(CONFIG_MSM_HW3D) += hw3d.o
-ifdef CONFIG_PM
-	obj-$(CONFIG_ARCH_MSM8960) += pm-8x60.o
-	obj-$(CONFIG_ARCH_MSM8X60) += pm-8x60.o
-	obj-$(CONFIG_ARCH_MSM9615) += pm-8x60.o
-	obj-$(CONFIG_ARCH_QSD8X50) += pm2.o
-	obj-$(CONFIG_ARCH_MSM7X30) += pm2.o
-	obj-$(CONFIG_ARCH_MSM7X27) += pm2.o
-	obj-$(CONFIG_ARCH_MSM7X27A) += pm2.o
-	obj-$(CONFIG_ARCH_MSM7X25) += pm.o
-	obj-$(CONFIG_ARCH_MSM7X01A) += pm.o
-	obj-y += pm-boot.o
-else
-	obj-y += no-pm.o hotplug.o
-endif
+obj-$(CONFIG_PM) += pm-boot.o
+obj-$(CONFIG_MSM_PM8X60) += pm-8x60.o
+obj-$(CONFIG_MSM_PM2) += pm2.o
+obj-$(CONFIG_MSM_PM) += pm.o
+obj-$(CONFIG_MSM_NOPM) += no-pm.o
 
 obj-$(CONFIG_MSM_SPM_V1) += spm.o
 obj-$(CONFIG_MSM_SPM_V2) += spm-v2.o spm_devices.o
 
 obj-$(CONFIG_MSM_DMA_TEST) += dma_test.o
 obj-$(CONFIG_SURF_FFA_GPIO_KEYPAD) += keypad-surf-ffa.o
-
+#/*< DTS2012020306500 lijianzhao 20120204 begin */
+obj-$(CONFIG_HUAWEI_GPIO_KEYPAD) += keypad-huawei.o
+#/* DTS2012020306500 lijianzhao 20120204 end >*/
+#/*< DTS2012021003176 yanzhijun 20120210 begin */
+# merge DTS2011110800980 fangxinyong  
+obj-$(CONFIG_HUAWEI_KEY_TEST) += huawei_key_test.o
+#/* DTS2012021003176 yanzhijun 20120210 end >*/ 
 obj-$(CONFIG_ARCH_MSM7X01A) += board-halibut.o devices-msm7x01a.o clock-pcom-lookup.o
 obj-$(CONFIG_MACH_TROUT) += board-trout.o board-trout-gpio.o
 obj-$(CONFIG_MACH_TROUT) += board-trout-keypad.o board-trout-panel.o
@@ -174,8 +171,14 @@ obj-$(CONFIG_MACH_QSD8X50_FFA) += board-qsd8x50.o
 obj-$(CONFIG_ARCH_MSM8X60) += devices-msm8x60.o clock-local.o clock-8x60.o acpuclock-8x60.o
 obj-$(CONFIG_ARCH_MSM8X60) += clock-rpm.o
 obj-$(CONFIG_ARCH_MSM8X60) += saw-regulator.o
-obj-$(CONFIG_ARCH_MSM8X60) += rpm-regulator.o rpm-regulator-8660.o
 obj-$(CONFIG_ARCH_MSM8X60) += footswitch-8x60.o
+
+ifdef CONFIG_MSM_RPM_REGULATOR
+obj-y += rpm-regulator.o
+obj-$(CONFIG_ARCH_MSM8X60) += rpm-regulator-8660.o
+obj-$(CONFIG_ARCH_MSM8960) += rpm-regulator-8960.o
+obj-$(CONFIG_ARCH_MSM9615) += rpm-regulator-9615.o
+endif
 
 ifdef CONFIG_MSM_SUBSYSTEM_RESTART
 	obj-y += subsystem_notif.o
@@ -215,46 +218,56 @@ obj-$(CONFIG_ARCH_MSM7X27) += clock-pcom-lookup.o
 obj-$(CONFIG_MACH_MSM7X27_SURF) += board-msm7x27.o devices-msm7x27.o
 obj-$(CONFIG_MACH_MSM7X27_FFA) += board-msm7x27.o devices-msm7x27.o
 obj-$(CONFIG_ARCH_MSM7X27A) += clock-pcom-lookup.o devices-msm7x27a.o
-obj-$(CONFIG_MACH_MSM7X27A_RUMI3) += board-msm7x27a.o
-obj-$(CONFIG_MACH_MSM7X27A_SURF) += board-msm7x27a.o
-obj-$(CONFIG_MACH_MSM7X27A_FFA) += board-msm7x27a.o
-obj-$(CONFIG_MACH_MSM7627A_QRD1) += board-qrd7627a.o
+obj-$(CONFIG_MACH_MSM7X27A_RUMI3) += board-msm7x27a.o board-msm7627a-storage.o board-msm7627a-bt.o board-msm7627a-camera.o
+#/*< DTS2012041800928 yuanmingming 20120418 begin */
+obj-$(CONFIG_MACH_MSM7X27A_SURF) += board-msm7x27a.o board-msm7627a-storage.o board-msm7627a-bt.o board-msm7627a-camera.o board-msm7627a-wlan.o
+#/* DTS2012041800928  yuanmingming 20120418 end > */
+obj-$(CONFIG_MACH_MSM7X27A_FFA) += board-msm7x27a.o board-msm7627a-storage.o board-msm7627a-bt.o board-msm7627a-camera.o
+obj-$(CONFIG_MACH_MSM7627A_QRD1) += board-qrd7627a.o board-msm7627a-storage.o board-msm7627a-bt.o board-msm7627a-camera.o
+#/*< BU5D08419 haoqingtao 20100424 begin*/    
 obj-$(CONFIG_ARCH_MSM7X30) += board-hw7x30.o devices-msm7x30.o memory_topology.o
-obj-$(CONFIG_ARCH_MSM7X30) += clock-local.o clock-7x30.o acpuclock-7x30.o
+#/* BU5D08419 haoqingtao 20100424 end>*/   
+obj-$(CONFIG_ARCH_MSM7X30) += clock-local.o clock-7x30.o acpuclock-7x30.o 
 obj-$(CONFIG_MACH_MSM7X25_SURF) += board-msm7x27.o devices-msm7x25.o
 obj-$(CONFIG_MACH_MSM7X25_FFA) += board-msm7x27.o devices-msm7x25.o
 obj-$(CONFIG_ARCH_MSM8960) += clock-local.o clock-dss-8960.o clock-8960.o clock-rpm.o
 obj-$(CONFIG_ARCH_MSM8960) += footswitch-8x60.o
 obj-$(CONFIG_ARCH_MSM8960) += acpuclock-8960.o
 obj-$(CONFIG_ARCH_MSM8960) += memory_topology.o
-obj-$(CONFIG_ARCH_MSM8960) += saw-regulator.o rpm-regulator.o rpm-regulator-8960.o
+obj-$(CONFIG_ARCH_MSM8960) += saw-regulator.o
 obj-$(CONFIG_ARCH_MSM8960) += devices-8960.o
 obj-$(CONFIG_ARCH_APQ8064) += devices-8960.o devices-8064.o
 board-8960-all-objs += board-8960.o board-8960-camera.o board-8960-display.o board-8960-pmic.o board-8960-storage.o board-8960-gpiomux.o
 board-8930-all-objs += board-8930.o board-8930-camera.o board-8930-display.o board-8930-pmic.o board-8930-storage.o board-8930-gpiomux.o
-board-8064-all-objs += board-8064.o board-8064-pmic.o board-8064-storage.o board-8064-gpiomux.o
+board-8064-all-objs += board-8064.o board-8064-pmic.o board-8064-storage.o board-8064-gpiomux.o board-8064-camera.o
 obj-$(CONFIG_MACH_MSM8960_SIM) += board-8960-all.o board-8960-regulator.o
 obj-$(CONFIG_MACH_MSM8960_RUMI3) += board-8960-all.o board-8960-regulator.o
 obj-$(CONFIG_MACH_MSM8960_CDP) += board-8960-all.o board-8960-regulator.o
 obj-$(CONFIG_MACH_MSM8960_MTP) += board-8960-all.o board-8960-regulator.o
 obj-$(CONFIG_MACH_MSM8960_FLUID) += board-8960-all.o board-8960-regulator.o
-obj-$(CONFIG_MACH_MSM8930_CDP) += board-8930-all.o board-8960-regulator.o
-obj-$(CONFIG_MACH_MSM8930_MTP) += board-8930-all.o board-8960-regulator.o
-obj-$(CONFIG_MACH_MSM8930_FLUID) += board-8930-all.o board-8960-regulator.o
+obj-$(CONFIG_MACH_MSM8930_CDP) += board-8930-all.o board-8930-regulator.o
+obj-$(CONFIG_MACH_MSM8930_MTP) += board-8930-all.o board-8930-regulator.o
+obj-$(CONFIG_MACH_MSM8930_FLUID) += board-8930-all.o board-8930-regulator.o
 obj-$(CONFIG_ARCH_MSM8960) += bms-batterydata.o
 obj-$(CONFIG_MACH_APQ8064_SIM) += board-8064-all.o board-8064-regulator.o
 obj-$(CONFIG_MACH_APQ8064_RUMI3) += board-8064-all.o board-8064-regulator.o
-obj-$(CONFIG_ARCH_MSM9615) += board-9615.o devices-9615.o board-9615-regulator.o
+obj-$(CONFIG_ARCH_MSM9615) += board-9615.o devices-9615.o board-9615-regulator.o board-9615-gpiomux.o board-9615-storage.o
 obj-$(CONFIG_ARCH_MSM9615) += clock-local.o clock-9615.o acpuclock-9615.o clock-rpm.o
-obj-$(CONFIG_ARCH_MSM9615) += rpm-regulator.o rpm-regulator-9615.o
 obj-$(CONFIG_ARCH_MSMCOPPER) += board-copper.o board-dt.o
 
+#/* <DTS2010120303164 penghai 20101203 begin */
 obj-$(CONFIG_HUAWEI_KEY_TEST) += huawei_key_test.o
-obj-$(CONFIG_HUAWEI_FEATURE_VIBRATOR) += msm_vibrator.o
-obj-$(CONFIG_HUAWEI_FEATURE_RGB_KEY_LIGHT) += RGB_led.o
-obj-$(CONFIG_HUAWEI_FEATURE_PTT_KEY_LIGHT) += ptt_led.o
+#/* DTS2010120303164 penghai 20101203 end> */ 
+#/*< DTS2012020306500 lijianzhao 20120204 begin */
+#/* move to driver/leds/makefile */
+#/* DTS2012020306500 lijianzhao 20120204 end >*/
 
+#/* <DTS2011030801141 renxigang 20110308 begin */
 obj-$(CONFIG_HUAWEI_SMEM_SLEEP_LOG) += smem_sleep_log.o
+#/* DTS2011030801141 renxigang 20110308 end > */
+#/*< DTS2012011801998 chenxi 20120203 begin */
+obj-$(CONFIG_HUAWEI_KERNEL) += smem_vendor_huawei.o
+#/* DTS2012011801998 chenxi 20120203 end >*/
 
 obj-$(CONFIG_MACH_SAPPHIRE) += board-sapphire.o board-sapphire-gpio.o
 obj-$(CONFIG_MACH_SAPPHIRE) += board-sapphire-keypad.o board-sapphire-panel.o
@@ -305,7 +318,8 @@ obj-y	+= gpio.o
 endif
 endif
 
-obj-$(CONFIG_MSM_SLEEP_STATS) += msm_rq_stats.o idle_stats.o idle_stats_device.o
+obj-$(CONFIG_MSM_SLEEP_STATS) += msm_rq_stats.o idle_stats.o
+obj-$(CONFIG_MSM_SLEEP_STATS_DEVICE) += idle_stats_device.o
 obj-$(CONFIG_MSM_SHOW_RESUME_IRQ) += msm_show_resume_irq.o
 obj-$(CONFIG_BT_MSM_PINTEST)  += btpintest.o
 obj-$(CONFIG_MSM_FAKE_BATTERY) += fish_battery.o
@@ -321,3 +335,4 @@ obj-$(CONFIG_ARCH_MSM7X27A) += board-msm7x27a-regulator.o
 endif
 
 obj-$(CONFIG_ARCH_MSM8960) += mdm2.o mdm_common.o
+obj-$(CONFIG_MSM_RTB) += msm_rtb.o

@@ -29,30 +29,9 @@
 #include <asm/ptrace.h>
 #include <asm/irq_regs.h>
 
-/* merge qcom DEBUG_CODE for RPC crashes */
-#ifdef CONFIG_HUAWEI_RPC_CRASH_DEBUG
-#include <linux/kernel.h>  
-#include <mach/msm_iomap.h>  
-#include <linux/io.h>
-
-#define TIMESTAMP_ADDR_TMP     (MSM_TMR_BASE + 0x08)
-
-static inline unsigned int read_timestamp(void)  
-{  
-	unsigned int tick = 0;  
-	tick = readl(TIMESTAMP_ADDR_TMP);  
-	return tick;  
-}  
-
-struct irqs_timestamp {  
-	unsigned int irq;  
-	uint32_t  ts; 
-	unsigned int state; 
-};  
-
-static struct irqs_timestamp irq_ts[128];  
-static int irq_idx = 0;  
-#endif
+/* < DTS2012031000716 fangxinyong 20120310 begin */
+/* delete HUAWEI rpc crash debug for irq_ts and irq_idx */
+/* DTS2012031000716 fangxinyong 20120310 end > */
 
 struct seq_file;
 struct irq_desc;

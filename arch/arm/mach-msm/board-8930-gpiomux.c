@@ -1,4 +1,4 @@
-/* Copyright (c) 2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -120,42 +120,70 @@ static struct gpiomux_setting wcnss_5wire_active_cfg = {
 	.pull = GPIOMUX_PULL_DOWN,
 };
 
-static struct gpiomux_setting cyts_resout_sus_cfg = {
-	.func = GPIOMUX_FUNC_GPIO,
-	.drv = GPIOMUX_DRV_6MA,
-	.pull = GPIOMUX_PULL_UP,
-};
-
-static struct gpiomux_setting cyts_resout_act_cfg = {
-	.func = GPIOMUX_FUNC_GPIO,
-	.drv = GPIOMUX_DRV_6MA,
-	.pull = GPIOMUX_PULL_UP,
-};
-
-static struct gpiomux_setting cyts_sleep_sus_cfg = {
+static struct gpiomux_setting atmel_resout_sus_cfg = {
 	.func = GPIOMUX_FUNC_GPIO,
 	.drv = GPIOMUX_DRV_6MA,
 	.pull = GPIOMUX_PULL_DOWN,
 };
 
-static struct gpiomux_setting cyts_sleep_act_cfg = {
+static struct gpiomux_setting atmel_resout_act_cfg = {
+	.func = GPIOMUX_FUNC_GPIO,
+	.drv = GPIOMUX_DRV_6MA,
+	.pull = GPIOMUX_PULL_UP,
+};
+
+static struct gpiomux_setting atmel_ldo_en_sus_cfg = {
 	.func = GPIOMUX_FUNC_GPIO,
 	.drv = GPIOMUX_DRV_6MA,
 	.pull = GPIOMUX_PULL_DOWN,
 };
 
-static struct gpiomux_setting cyts_int_act_cfg = {
+static struct gpiomux_setting atmel_ldo_en_act_cfg = {
+	.func = GPIOMUX_FUNC_GPIO,
+	.drv = GPIOMUX_DRV_6MA,
+	.pull = GPIOMUX_PULL_DOWN,
+};
+
+static struct gpiomux_setting atmel_int_act_cfg = {
 	.func = GPIOMUX_FUNC_GPIO,
 	.drv = GPIOMUX_DRV_8MA,
 	.pull = GPIOMUX_PULL_UP,
 };
 
-static struct gpiomux_setting cyts_int_sus_cfg = {
+static struct gpiomux_setting atmel_int_sus_cfg = {
 	.func = GPIOMUX_FUNC_GPIO,
 	.drv = GPIOMUX_DRV_2MA,
 	.pull = GPIOMUX_PULL_DOWN,
 };
+#ifdef MSM8930_PHASE_2
+static struct gpiomux_setting hsusb_act_cfg = {
+	.func = GPIOMUX_FUNC_GPIO,
+	.drv = GPIOMUX_DRV_8MA,
+	.pull = GPIOMUX_PULL_UP,
+};
 
+static struct gpiomux_setting hsusb_sus_cfg = {
+	.func = GPIOMUX_FUNC_GPIO,
+	.drv = GPIOMUX_DRV_2MA,
+	.pull = GPIOMUX_PULL_DOWN,
+};
+static struct msm_gpiomux_config msm8930_hsusb_configs[] = {
+	{
+		.gpio = 63,     /* HSUSB_EXTERNAL_5V_LDO_EN */
+		.settings = {
+			[GPIOMUX_ACTIVE] = &hsusb_act_cfg,
+			[GPIOMUX_SUSPENDED] = &hsusb_sus_cfg,
+		},
+	},
+	{
+		.gpio = 97,     /* HSUSB_5V_EN */
+		.settings = {
+			[GPIOMUX_ACTIVE] = &hsusb_act_cfg,
+			[GPIOMUX_SUSPENDED] = &hsusb_sus_cfg,
+		},
+	},
+};
+#endif
 #ifdef CONFIG_USB_EHCI_MSM_HSIC
 static struct gpiomux_setting hsic_act_cfg = {
 	.func = GPIOMUX_FUNC_1,
@@ -455,26 +483,26 @@ static struct msm_gpiomux_config wcnss_5wire_interface[] = {
 	},
 };
 
-static struct msm_gpiomux_config msm8960_cyts_configs[] __initdata = {
+static struct msm_gpiomux_config msm8960_atmel_configs[] __initdata = {
 	{	/* TS INTERRUPT */
 		.gpio = 11,
 		.settings = {
-			[GPIOMUX_ACTIVE]    = &cyts_int_act_cfg,
-			[GPIOMUX_SUSPENDED] = &cyts_int_sus_cfg,
+			[GPIOMUX_ACTIVE]    = &atmel_int_act_cfg,
+			[GPIOMUX_SUSPENDED] = &atmel_int_sus_cfg,
 		},
 	},
-	{	/* TS SLEEP */
+	{	/* TS LDO ENABLE */
 		.gpio = 50,
 		.settings = {
-			[GPIOMUX_ACTIVE]    = &cyts_sleep_act_cfg,
-			[GPIOMUX_SUSPENDED] = &cyts_sleep_sus_cfg,
+			[GPIOMUX_ACTIVE]    = &atmel_ldo_en_act_cfg,
+			[GPIOMUX_SUSPENDED] = &atmel_ldo_en_sus_cfg,
 		},
 	},
 	{	/* TS RESOUT */
 		.gpio = 52,
 		.settings = {
-			[GPIOMUX_ACTIVE]    = &cyts_resout_act_cfg,
-			[GPIOMUX_SUSPENDED] = &cyts_resout_sus_cfg,
+			[GPIOMUX_ACTIVE]    = &atmel_resout_act_cfg,
+			[GPIOMUX_SUSPENDED] = &atmel_resout_sus_cfg,
 		},
 	},
 };
@@ -603,6 +631,29 @@ static struct msm_gpiomux_config msm8960_hdmi_configs[] __initdata = {
 };
 #endif
 
+#ifdef MSM8930_PHASE_2
+static struct gpiomux_setting haptics_suspend_cfg = {
+	.func = GPIOMUX_FUNC_GPIO,
+	.drv = GPIOMUX_DRV_8MA,
+	.pull = GPIOMUX_PULL_DOWN,
+};
+
+static struct msm_gpiomux_config msm8930_haptics_configs[] __initdata = {
+	{
+		.gpio = 77,
+		.settings = {
+			[GPIOMUX_SUSPENDED] = &haptics_suspend_cfg,
+		},
+	},
+	{
+		.gpio = 78,
+		.settings = {
+			[GPIOMUX_SUSPENDED] = &haptics_suspend_cfg,
+		},
+	},
+};
+#endif
+
 int __init msm8930_init_gpiomux(void)
 {
 	int rc = msm_gpiomux_init(NR_GPIO_IRQS);
@@ -619,8 +670,8 @@ int __init msm8930_init_gpiomux(void)
 	msm_gpiomux_install(msm8960_gsbi_configs,
 			ARRAY_SIZE(msm8960_gsbi_configs));
 
-	msm_gpiomux_install(msm8960_cyts_configs,
-			ARRAY_SIZE(msm8960_cyts_configs));
+	msm_gpiomux_install(msm8960_atmel_configs,
+			ARRAY_SIZE(msm8960_atmel_configs));
 
 	msm_gpiomux_install(msm8960_slimbus_config,
 			ARRAY_SIZE(msm8960_slimbus_config));
@@ -635,13 +686,24 @@ int __init msm8930_init_gpiomux(void)
 			ARRAY_SIZE(wcnss_5wire_interface));
 
 	if (machine_is_msm8930_mtp() || machine_is_msm8930_fluid() ||
-		machine_is_msm8930_cdp())
+		machine_is_msm8930_cdp()) {
 		msm_gpiomux_install(hap_lvl_shft_config,
 			ARRAY_SIZE(hap_lvl_shft_config));
+#ifdef MSM8930_PHASE_2
+		msm_gpiomux_install(msm8930_hsusb_configs,
+			ARRAY_SIZE(msm8930_hsusb_configs));
+#endif
+	}
 
 	if (PLATFORM_IS_CHARM25())
 		msm_gpiomux_install(mdm_configs,
 			ARRAY_SIZE(mdm_configs));
+
+#ifdef MSM8930_PHASE_2
+	if (machine_is_msm8930_mtp() || machine_is_msm8930_fluid())
+		msm_gpiomux_install(msm8930_haptics_configs,
+			ARRAY_SIZE(msm8930_haptics_configs));
+#endif
 
 #ifdef CONFIG_USB_EHCI_MSM_HSIC
 	if ((SOCINFO_VERSION_MAJOR(socinfo_get_version()) != 1) &&

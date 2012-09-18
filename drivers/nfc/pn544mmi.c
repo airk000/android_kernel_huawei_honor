@@ -1,3 +1,5 @@
+/* < DTS2011042602168 caomingxing 20110426 begin */
+/* < DTS2011011904316 genghua 20110121 begin */
 /* This file is imported by genghua in order to 
  * support temp nfc test before the HAL and the Up-level code
  * is added to our project.
@@ -15,6 +17,7 @@
 #include <linux/init.h>
 #include <linux/seq_file.h>
 
+/* < DTS2011012604950 genghua 20110126 begin */
 /* we add pn544_debug_control to let the 
  * driver can control the printk more easier.
  */
@@ -23,6 +26,7 @@
 	if (pn544_debug_mask && pn544_debug_control) \
 		printk(message, ## __VA_ARGS__); \
 	} while (0)
+/* DTS2011012604950 genghua 20110126 end >*/
 
 static int pn544_mmi_proc_show(struct seq_file *m, void *v)
 {
@@ -68,3 +72,5 @@ int pn544_mmi_init(void)
 	}	
 	return 0;
 }
+/* DTS2011011904316 genghua 20110121 end >*/
+/* DTS2011042602168 caomingxing 20110426 end > */

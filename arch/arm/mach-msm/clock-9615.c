@@ -1,4 +1,4 @@
-/* Copyright (c) 2009-2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2009-2012, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -121,6 +121,7 @@
 #define SLIMBUS_XO_SRC_CLK_CTL_REG		REG(0x2628)
 
 /* Low-power Audio clock registers. */
+#define LCC_CLK_HS_DEBUG_CFG_REG		REG_LPA(0x00A4)
 #define LCC_CLK_LS_DEBUG_CFG_REG		REG_LPA(0x00A8)
 #define LCC_CODEC_I2S_MIC_MD_REG		REG_LPA(0x0064)
 #define LCC_CODEC_I2S_MIC_NS_REG		REG_LPA(0x0060)
@@ -164,12 +165,14 @@
 #define TEST_TYPE_PER_LS	1
 #define TEST_TYPE_PER_HS	2
 #define TEST_TYPE_LPA		5
+#define TEST_TYPE_LPA_HS	6
 #define TEST_TYPE_SHIFT		24
 #define TEST_CLK_SEL_MASK	BM(23, 0)
 #define TEST_VECTOR(s, t)	(((t) << TEST_TYPE_SHIFT) | BVAL(23, 0, (s)))
 #define TEST_PER_LS(s)		TEST_VECTOR((s), TEST_TYPE_PER_LS)
 #define TEST_PER_HS(s)		TEST_VECTOR((s), TEST_TYPE_PER_HS)
 #define TEST_LPA(s)		TEST_VECTOR((s), TEST_TYPE_LPA)
+#define TEST_LPA_HS(s)		TEST_VECTOR((s), TEST_TYPE_LPA_HS)
 
 #define MN_MODE_DUAL_EDGE 0x2
 
@@ -370,33 +373,12 @@ static struct pll_vote_clk pll8_acpu_clk = {
 	},
 };
 
-static unsigned int soft_vote_pll9;
-
-static struct pll_vote_clk pll9_clk = {
+static struct pll_clk pll9_acpu_clk = {
 	.rate = 440000000,
-	.en_reg = BB_PLL_ENA_SC0_REG,
-	.en_mask = BIT(9),
-	.status_reg = SC_PLL0_STATUS_REG,
-	.parent = &cxo_clk.c,
-	.soft_vote = &soft_vote_pll9,
-	.soft_vote_mask = PLL_SOFT_VOTE_PRIMARY,
-	.c = {
-		.dbg_name = "pll9_clk",
-		.ops = &clk_ops_pll_acpu_vote,
-		CLK_INIT(pll9_clk.c),
-	},
-};
-
-static struct pll_vote_clk pll9_acpu_clk = {
-	.rate = 440000000,
-	.en_reg = BB_PLL_ENA_SC0_REG,
-	.en_mask = BIT(9),
-	.soft_vote = &soft_vote_pll9,
-	.soft_vote_mask = PLL_SOFT_VOTE_ACPU,
-	.status_reg = SC_PLL0_STATUS_REG,
+	.mode_reg = SC_PLL0_MODE_REG,
 	.c = {
 		.dbg_name = "pll9_acpu_clk",
-		.ops = &clk_ops_pll_acpu_vote,
+		.ops = &clk_ops_pll,
 		CLK_INIT(pll9_acpu_clk.c),
 	},
 };
@@ -729,6 +711,12 @@ static struct clk_freq_tbl clk_tbl_usb[] = {
 	F_END
 };
 
+static struct clk_freq_tbl clk_tbl_usb_hsic_sys[] = {
+	F_USB(       0, gnd,  1, 0, 0),
+	F_USB(64000000, pll8, 1, 1, 6),
+	F_END
+};
+
 static struct rcg_clk usb_hs1_xcvr_clk = {
 	.b = {
 		.ctl_reg = USB_HS1_XCVR_FS_CLK_NS_REG,
@@ -796,7 +784,7 @@ static struct rcg_clk usb_hsic_xcvr_clk = {
 	.c = {
 		.dbg_name = "usb_hsic_xcvr_clk",
 		.ops = &clk_ops_rcg_9615,
-		VDD_DIG_FMAX_MAP1(NOMINAL, 60000000),
+		VDD_DIG_FMAX_MAP1(LOW, 60000000),
 		CLK_INIT(usb_hsic_xcvr_clk.c),
 	},
 };
@@ -815,19 +803,19 @@ static struct rcg_clk usb_hsic_sys_clk = {
 	.root_en_mask = BIT(11),
 	.ns_mask = (BM(23, 16) | BM(6, 0)),
 	.set_rate = set_rate_mnd,
-	.freq_tbl = clk_tbl_usb,
+	.freq_tbl = clk_tbl_usb_hsic_sys,
 	.current_freq = &rcg_dummy_freq,
 	.c = {
 		.dbg_name = "usb_hsic_sys_clk",
 		.ops = &clk_ops_rcg_9615,
-		VDD_DIG_FMAX_MAP1(NOMINAL, 60000000),
+		VDD_DIG_FMAX_MAP1(LOW, 64000000),
 		CLK_INIT(usb_hsic_sys_clk.c),
 	},
 };
 
 static struct clk_freq_tbl clk_tbl_usb_hsic[] = {
 	F_USB(        0, gnd,   1, 0, 0),
-	F_USB(480000000, pll14, 1, 0, 1),
+	F_USB(480000000, pll14, 1, 0, 0),
 	F_END
 };
 
@@ -837,8 +825,7 @@ static struct rcg_clk usb_hsic_clk = {
 		.en_mask = BIT(9),
 		.reset_reg = USB_HSIC_RESET_REG,
 		.reset_mask = BIT(0),
-		.halt_reg = CLK_HALT_DFAB_STATE_REG,
-		.halt_bit = 7,
+		.halt_check = DELAY,
 	},
 	.ns_reg = USB_HSIC_CLK_NS_REG,
 	.md_reg = USB_HSIC_CLK_MD_REG,
@@ -850,7 +837,7 @@ static struct rcg_clk usb_hsic_clk = {
 	.c = {
 		.dbg_name = "usb_hsic_clk",
 		.ops = &clk_ops_rcg_9615,
-		VDD_DIG_FMAX_MAP1(NOMINAL, 480000000),
+		VDD_DIG_FMAX_MAP1(LOW, 480000000),
 		CLK_INIT(usb_hsic_clk.c),
 	},
 };
@@ -1397,6 +1384,10 @@ struct measure_sel {
 	struct clk *clk;
 };
 
+static DEFINE_CLK_MEASURE(q6sw_clk);
+static DEFINE_CLK_MEASURE(q6fw_clk);
+static DEFINE_CLK_MEASURE(q6_func_clk);
+
 static struct measure_sel measure_mux[] = {
 	{ TEST_PER_LS(0x08), &slimbus_xo_src_clk.c },
 	{ TEST_PER_LS(0x12), &sdc1_p_clk.c },
@@ -1444,10 +1435,13 @@ static struct measure_sel measure_mux[] = {
 	{ TEST_PER_LS(0x92), &ce1_p_clk.c },
 	{ TEST_PER_HS(0x18), &sfab_clk.c },
 	{ TEST_PER_HS(0x18), &sfab_a_clk.c },
+	{ TEST_PER_HS(0x26), &q6sw_clk },
+	{ TEST_PER_HS(0x27), &q6fw_clk },
 	{ TEST_PER_LS(0xA4), &ce1_core_clk.c },
 	{ TEST_PER_HS(0x2A), &adm0_clk.c },
 	{ TEST_PER_HS(0x34), &ebi1_clk.c },
 	{ TEST_PER_HS(0x34), &ebi1_a_clk.c },
+	{ TEST_PER_HS(0x3E), &usb_hsic_clk.c },
 	{ TEST_LPA(0x0F), &mi2s_bit_clk.c },
 	{ TEST_LPA(0x10), &codec_i2s_mic_bit_clk.c },
 	{ TEST_LPA(0x11), &codec_i2s_spkr_bit_clk.c },
@@ -1455,6 +1449,7 @@ static struct measure_sel measure_mux[] = {
 	{ TEST_LPA(0x13), &spare_i2s_spkr_bit_clk.c },
 	{ TEST_LPA(0x14), &pcm_clk.c },
 	{ TEST_LPA(0x1D), &audio_slimbus_clk.c },
+	{ TEST_LPA_HS(0x00), &q6_func_clk },
 };
 
 static struct measure_sel *find_measure_sel(struct clk *clk)
@@ -1502,6 +1497,11 @@ static int measure_clk_set_parent(struct clk *c, struct clk *parent)
 		writel_relaxed(0x4030D98, CLK_TEST_REG);
 		writel_relaxed(BVAL(6, 1, clk_sel)|BIT(0),
 				LCC_CLK_LS_DEBUG_CFG_REG);
+		break;
+	case TEST_TYPE_LPA_HS:
+		writel_relaxed(0x402BC00, CLK_TEST_REG);
+		writel_relaxed(BVAL(2, 1, clk_sel)|BIT(0),
+				LCC_CLK_HS_DEBUG_CFG_REG);
 		break;
 	default:
 		ret = -EPERM;
@@ -1615,9 +1615,9 @@ static struct measure_clk measure_clk = {
 
 static struct clk_lookup msm_clocks_9615[] = {
 	CLK_LOOKUP("cxo",	cxo_clk.c,	NULL),
+        CLK_LOOKUP("xo",        cxo_clk.c,     "BAM_RMNT"),
 	CLK_LOOKUP("pll0",	pll0_clk.c,	NULL),
 	CLK_LOOKUP("pll8",	pll8_clk.c,	NULL),
-	CLK_LOOKUP("pll9",	pll9_clk.c,	NULL),
 	CLK_LOOKUP("pll14",	pll14_clk.c,	NULL),
 
 	CLK_LOOKUP("pll0", pll0_acpu_clk.c, "acpu"),
@@ -1664,13 +1664,14 @@ static struct clk_lookup msm_clocks_9615[] = {
 	CLK_LOOKUP("iface_clk",	gsbi4_p_clk.c, "msm_serial_hsl.0"),
 	CLK_LOOKUP("iface_clk",	gsbi5_p_clk.c, "qup_i2c.0"),
 
-	CLK_LOOKUP("usb_hs_pclk",		usb_hs1_p_clk.c,	NULL),
-	CLK_LOOKUP("usb_hs_system_clk",		usb_hs1_sys_clk.c,	NULL),
-	CLK_LOOKUP("usb_hs_clk",		usb_hs1_xcvr_clk.c,	NULL),
-	CLK_LOOKUP("usb_hsic_xcvr_clk",		usb_hsic_xcvr_clk.c,	NULL),
-	CLK_LOOKUP("usb_hsic_hsio_cal_clk", usb_hsic_hsio_cal_clk.c,	NULL),
-	CLK_LOOKUP("usb_hsic_sys_clk",		usb_hsic_sys_clk.c,	NULL),
-	CLK_LOOKUP("usb_hsic_p_clk",		usb_hsic_p_clk.c,	NULL),
+	CLK_LOOKUP("iface_clk",	     usb_hs1_p_clk.c,		"msm_otg"),
+	CLK_LOOKUP("core_clk",       usb_hs1_sys_clk.c,		"msm_otg"),
+	CLK_LOOKUP("alt_core_clk",   usb_hs1_xcvr_clk.c,	"msm_otg"),
+	CLK_LOOKUP("alt_core_clk",   usb_hsic_xcvr_clk.c,      "msm_hsic_host"),
+	CLK_LOOKUP("cal_clk",	     usb_hsic_hsio_cal_clk.c,  "msm_hsic_host"),
+	CLK_LOOKUP("core_clk",	     usb_hsic_sys_clk.c,       "msm_hsic_host"),
+	CLK_LOOKUP("iface_clk",	     usb_hsic_p_clk.c,	       "msm_hsic_host"),
+	CLK_LOOKUP("phy_clk",        usb_hsic_clk.c,	       "msm_hsic_host"),
 
 	CLK_LOOKUP("iface_clk",		sdc1_p_clk.c,		"msm_sdcc.1"),
 	CLK_LOOKUP("iface_clk",		sdc2_p_clk.c,		"msm_sdcc.2"),
@@ -1695,7 +1696,7 @@ static struct clk_lookup msm_clocks_9615[] = {
 
 	CLK_LOOKUP("sps_slimbus_clk",	sps_slimbus_clk.c,	NULL),
 	CLK_LOOKUP("audio_slimbus_clk",	audio_slimbus_clk.c,	NULL),
-	CLK_LOOKUP("dfab_usb_hs_clk",	dfab_usb_hs_clk.c,	NULL),
+	CLK_LOOKUP("core_clk",		dfab_usb_hs_clk.c,	"msm_otg"),
 	CLK_LOOKUP("bus_clk",		dfab_sdc1_clk.c,	"msm_sdcc.1"),
 	CLK_LOOKUP("bus_clk",		dfab_sdc2_clk.c,	"msm_sdcc.2"),
 	CLK_LOOKUP("dfab_clk",		dfab_sps_clk.c,		"msm_sps"),
@@ -1706,6 +1707,10 @@ static struct clk_lookup msm_clocks_9615[] = {
 	CLK_LOOKUP("iface_clk",		ce1_p_clk.c,		"qcrypto.0"),
 	CLK_LOOKUP("core_clk",		ce1_core_clk.c,		"qce.0"),
 	CLK_LOOKUP("core_clk",		ce1_core_clk.c,		"qcrypto.0"),
+
+	CLK_LOOKUP("q6sw_clk",		q6sw_clk, NULL),
+	CLK_LOOKUP("q6fw_clk",		q6fw_clk, NULL),
+	CLK_LOOKUP("q6_func_clk",	q6_func_clk, NULL),
 
 	/* TODO: Make this real when RPM's ready. */
 	CLK_DUMMY("ebi1_msmbus_clk",	ebi1_msmbus_clk.c, NULL, OFF),
@@ -1741,7 +1746,7 @@ static void set_fsm_mode(void __iomem *mode_reg)
  */
 static void __init reg_init(void)
 {
-	u32 regval, is_pll_enabled;
+	u32 regval, is_pll_enabled, pll9_lval;
 
 	/* Enable PDM CXO source. */
 	regval = readl_relaxed(PDM_CLK_NS_REG);
@@ -1777,33 +1782,6 @@ static void __init reg_init(void)
 		set_fsm_mode(BB_PLL0_MODE_REG);
 	}
 
-	/* Check if PLL9 (SC_PLL0) is enabled in FSM mode */
-	is_pll_enabled  = readl_relaxed(SC_PLL0_STATUS_REG) & BIT(16);
-
-	if (!is_pll_enabled) {
-		writel_relaxed(0x16, SC_PLL0_L_VAL_REG);
-		writel_relaxed(0xB, SC_PLL0_M_VAL_REG);
-		writel_relaxed(0xC, SC_PLL0_N_VAL_REG);
-
-		regval = readl_relaxed(SC_PLL0_CONFIG_REG);
-
-		/* Enable main output and the MN accumulator */
-		regval |= BIT(23) | BIT(22);
-
-		/* Set pre-divider and post-divider values to 1 and 1 */
-		regval &= ~BIT(19);
-		regval &= ~BM(21, 20);
-
-		/* Set VCO frequency */
-		regval &= ~BM(17, 16);
-
-		writel_relaxed(regval, SC_PLL0_CONFIG_REG);
-
-		set_fsm_mode(SC_PLL0_MODE_REG);
-
-	} else if (!(readl_relaxed(SC_PLL0_MODE_REG) & BIT(20)))
-		WARN(1, "PLL9 enabled in non-FSM mode!\n");
-
 	/* Check if PLL14 is enabled in FSM mode */
 	is_pll_enabled  = readl_relaxed(BB_PLL14_STATUS_REG) & BIT(16);
 
@@ -1831,6 +1809,12 @@ static void __init reg_init(void)
 	} else if (!(readl_relaxed(BB_PLL14_MODE_REG) & BIT(20)))
 		WARN(1, "PLL14 enabled in non-FSM mode!\n");
 
+	/* Detect PLL9 rate and fixup structure accordingly */
+	pll9_lval = readl_relaxed(SC_PLL0_L_VAL_REG);
+
+	if (pll9_lval == 0x1C)
+		pll9_acpu_clk.rate = 550000000;
+
 	/* Enable PLL4 source on the LPASS Primary PLL Mux */
 	regval = readl_relaxed(LCC_PRI_PLL_CLK_CTL_REG);
 	writel_relaxed(regval | BIT(0), LCC_PRI_PLL_CLK_CTL_REG);
@@ -1847,12 +1831,16 @@ static void __init reg_init(void)
 	regval = readl_relaxed(USB_HS1_HCLK_CTL_REG);
 	regval &= ~BIT(6);
 	writel_relaxed(regval, USB_HS1_HCLK_CTL_REG);
+
+	regval = readl_relaxed(DMA_BAM_HCLK_CTL);
+	regval &= ~BIT(6);
+	writel_relaxed(regval, DMA_BAM_HCLK_CTL);
 }
 
 /* Local clock driver initialization. */
 static void __init msm9615_clock_init(void)
 {
-	xo_cxo = msm_xo_get(MSM_XO_TCXO_D0, "clock-9615");
+	xo_cxo = msm_xo_get(MSM_XO_CXO, "clock-9615");
 	if (IS_ERR(xo_cxo)) {
 		pr_err("%s: msm_xo_get(CXO) failed.\n", __func__);
 		BUG();
@@ -1871,8 +1859,8 @@ static void __init msm9615_clock_init(void)
 	clk_set_rate(&usb_hs1_xcvr_clk.c, 60000000);
 	clk_set_rate(&usb_hs1_sys_clk.c, 60000000);
 	clk_set_rate(&usb_hsic_xcvr_clk.c, 60000000);
-	clk_set_rate(&usb_hsic_sys_clk.c, 60000000);
-	clk_set_rate(&usb_hsic_clk.c, 48000000);
+	clk_set_rate(&usb_hsic_sys_clk.c, 64000000);
+	clk_set_rate(&usb_hsic_clk.c, 480000000);
 
 	/*
 	 * The halt status bits for PDM may be incorrect at boot.

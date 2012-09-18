@@ -1,4 +1,4 @@
-/* Copyright (c) 2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -209,7 +209,7 @@ static int calib_start_conv(struct pm8xxx_ccadc_chip *chip,
 			return rc;
 		}
 		if ((reg & (START_CONV_BIT | EOC_CONV_BIT)) != EOC_CONV_BIT)
-			msleep(60);
+			msleep(20);
 		else
 			break;
 	}
@@ -258,7 +258,7 @@ static int calib_ccadc_read_trim(struct pm8xxx_ccadc_chip *chip,
 static void calib_ccadc_read_offset_and_gain(struct pm8xxx_ccadc_chip *chip,
 						int *gain, u16 *offset)
 {
-	s8 data_msb;
+	u8 data_msb;
 	u8 data_lsb;
 	int rc;
 
@@ -539,14 +539,15 @@ static int ccadc_get_rsense_voltage(int *voltage_uv)
 					the_chip->ccadc_offset);
 	*voltage_uv = pm8xxx_ccadc_reading_to_microvolt(the_chip->revision,
 			((s64)result));
-	pr_debug("Vsense before gain = %d uV\n", *voltage_uv);
+	pr_debug("Vsense before gain of %d = %d uV\n", the_chip->ccadc_gain_uv,
+					*voltage_uv);
 	*voltage_uv = pm8xxx_cc_adjust_for_gain(*voltage_uv);
 
 	pr_debug("Vsense = %d uV\n", *voltage_uv);
 	return 0;
 }
 
-int pm8xxx_ccadc_get_battery_current(int *bat_current)
+int pm8xxx_ccadc_get_battery_current(int *bat_current_ua)
 {
 	int voltage_uv, rc;
 
@@ -556,13 +557,13 @@ int pm8xxx_ccadc_get_battery_current(int *bat_current)
 		return rc;
 	}
 
-	*bat_current = voltage_uv/the_chip->r_sense;
+	*bat_current_ua = voltage_uv * 1000/the_chip->r_sense;
 	/*
 	 * ccadc reads +ve current when the battery is charging
 	 * We need to return -ve if the battery is charging
 	 */
-	*bat_current = -1 * (*bat_current);
-	pr_debug("bat current = %d ma\n", *bat_current);
+	*bat_current_ua = -1 * (*bat_current_ua);
+	pr_debug("bat current = %d ma\n", *bat_current_ua);
 	return 0;
 }
 EXPORT_SYMBOL(pm8xxx_ccadc_get_battery_current);

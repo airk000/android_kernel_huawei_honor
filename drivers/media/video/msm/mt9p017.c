@@ -1,3 +1,5 @@
+/*< DTS2012020400396 zhangyu 20120206 begin */
+/*< DTS2011092106898   yuguangcai 20110924 begin */
 
 /* Copyright (c) 2010, Code Aurora Forum. All rights reserved.
  *
@@ -28,7 +30,11 @@
 #include <mach/gpio.h>
 #include <mach/camera.h>
 #include "mt9p017.h"
-#include <asm/mach-types.h>
+/* <DTS2011112400871 sunwenyong 20111124 begin */
+#ifdef CONFIG_HUAWEI_HW_DEV_DCT
+#include <linux/hw_dev_dec.h>
+#endif
+/* DTS2011112400871 sunwenyong 20111124 end> */
 #undef CDBG
 #define CDBG(fmt, args...) printk(KERN_INFO "mt9p017.c: " fmt, ## args)
 
@@ -292,11 +298,13 @@ static int32_t mt9p017_i2c_write_b(unsigned short saddr, unsigned short waddr,
         CDBG("i2c_write_b failed, saddr = 0x%x addr = 0x%x, val =0x%x!\n",
              saddr, waddr, bdata);
     }
+
+    /*
     else
     {
         CDBG("i2c_write_b succeeded: saddr = 0x%x addr = 0x%x, val =0x%x!\n",
              saddr, waddr, bdata);
-    }
+    }*/
 
     return rc;
 }
@@ -320,11 +328,13 @@ static int32_t mt9p017_i2c_write_w(unsigned short saddr, unsigned short waddr,
         CDBG("i2c_write_w failed, saddr = 0x%x addr = 0x%x, val = 0x%x!\n",
              saddr, waddr, wdata);
     }
+
+    /*
     else
     {
         CDBG("i2c_write_w succeeded: saddr = 0x%x addr = 0x%x, val = 0x%x!\n",
              saddr, waddr, wdata);
-    }
+    }*/
 
     //mdelay(20);
     //mt9p017_i2c_read_w(saddr, waddr, &temp_data);
@@ -338,7 +348,6 @@ static int32_t mt9p017_i2c_write_w_table(struct mt9p017_i2c_reg_conf const
     int i;
     int32_t rc = -EIO;
 
-    printk("Write TABLE!\n");
     for (i = 0; i < num; i++)
     {
         rc = mt9p017_i2c_write_w(mt9p017_client->addr,
@@ -383,87 +392,8 @@ static int32_t mt9p017_lens_shading_enable(uint8_t is_enable)
     CDBG("%s: exiting. rc = %d\n", __func__, rc);
     return rc;
 }
-
-static int32_t mt9p017_set_noise_cancel(uint8_t lut_index)
-{
-    int32_t rc = 0;
-    uint16_t nr_table[] =
-    {
-        0x64, 0x64, 0x64, 0x80, 0xA0, 0xC0, 0xE0, 0xFF, 0x110
-    };
-
-    struct mt9p017_i2c_reg_conf nr_tbl1[] =
-    {
-        {0x3100, 0x0002},
-        {0x3106, 0x0201},
-        {0x3108, 0x0905},
-        {0x310A, 0x002A},
-        {0x31E0, 0x1D01},
-        {0x3F02, 0x0001},
-        {0x3F04, 0x0032},
-        {0x3F06, 0x015E},
-        {0x3F08, 0x0190}
-    };
-
-    struct mt9p017_i2c_reg_conf nr_tbl2[] =
-    {
-        {0x3100, 0x0002},
-        {0x3106, 0x0604},
-        {0x3108, 0x120A},
-        {0x310A, 0x002A},
-        {0x31E0, 0x1F01},
-        {0x3F02, 0x0030},
-        {0x3F04, 0x0120},
-        {0x3F06, 0x00F0},
-        {0x3F08, 0x0170}
-    };
-    struct mt9p017_i2c_reg_conf nr_tbl3[] =
-    {
-        {0x3100, 0x0003},
-        {0x3106, 0x0604},
-        {0x3108, 0x120A},
-        {0x310A, 0x002A},
-        {0x31E0, 0x1F01},
-        {0x3F02, 0x0030},
-        {0x3F04, 0x0120},
-        {0x3F06, 0x00F0},
-        {0x3F08, 0x0170}
-    };
-
-    printk("Set noise reduction\n");
-    printk("LUT INDEX: %x\n", lut_index);
-
-    rc = mt9p017_i2c_write_b(mt9p017_client->addr,
-                             REG_GROUPED_PARAMETER_HOLD,
-                             GROUPED_PARAMETER_HOLD);
-
-    if (lut_index < 3)
-    {
-        rc = mt9p017_i2c_write_w_table(&nr_tbl1[0],
-                                       ARRAY_SIZE(nr_tbl1));
-    }
-    else if (lut_index < 6)
-    {
-        rc = mt9p017_i2c_write_w_table(&nr_tbl2[0],
-                                       ARRAY_SIZE(nr_tbl2));
-    }
-    else
-    {
-        rc = mt9p017_i2c_write_w_table(&nr_tbl3[0],
-                                       ARRAY_SIZE(nr_tbl3));
-    }
-
-    if (!mt9p017_i2c_write_w(mt9p017_client->addr, 0x3102, nr_table[lut_index - 1]))
-    {
-        return -1;
-    }
-
-    rc = mt9p017_i2c_write_b(mt9p017_client->addr,
-                             REG_GROUPED_PARAMETER_HOLD,
-                             GROUPED_PARAMETER_UPDATE);
-    return 0;
-}
-
+/*<DTS2012051702530 wangqing 20120523 begin*/
+#ifndef MT9P017_OTP_SUPPORT
 static int32_t mt9p017_set_lc(void)
 {
     int32_t rc;
@@ -473,14 +403,309 @@ static int32_t mt9p017_set_lc(void)
 
     return rc;
 }
+#else
+#define TRUE    1
+#define FALSE   0
+//for read lens shading from eeprom 
+#define LC_TABLE_SIZE 106//equal to the size of mt9p017_lc_tbl - 1.
+static const unsigned short mt9p017_eeprom_table[LC_TABLE_SIZE] = {
+	0x3800,
+    0x3802,
+    0x3804,
+    0x3806,
+    0x3808,
+    0x380A,
+    0x380C,
+    0x380E,
+    0x3810,
+    0x3812,
+    0x3814,
+    0x3816,
+    0x3818,
+    0x381A,
+    0x381C,
+    0x381E,
+    0x3820,
+    0x3822,
+    0x3824,
+    0x3826,
+    0x3828,
+    0x382A,
+    0x382C,
+    0x382E,
+    0x3830,
+    0x3832,
+    0x3834,
+    0x3836,
+    0x3838,
+    0x383A,
+    0x383C,
+    0x383E,
+    0x3840,
+    0x3842,
+    0x3844,
+    0x3846,
+    0x3848,
+    0x384A,
+    0x384C,
+    0x384E,
+    0x3850,
+    0x3852,
+    0x3854,
+    0x3856,
+    0x3858,
+    0x385A,
+    0x385C,
+    0x385E,
+    0x3860,
+    0x3862,
+    0x3864,
+    0x3866,
+    0x3868,
+    0x386A,
+    0x386C,
+    0x386E,
+    0x3870,
+    0x3872,
+    0x3874,
+    0x3876,
+    0x3878,
+    0x387A,
+    0x387C,
+    0x387E,
+    0x3880,
+    0x3882,
+    0x3884,
+    0x3886,
+    0x3888,
+    0x388A,
+    0x388C,
+    0x388E,
+    0x3890,
+    0x3892,
+    0x3894,//===================
+    0x3898,//===================
+    0x389A,
+    0x389C,
+    0x389E,
+    0x38A0,
+    0x38A2,
+    0x38A4,
+    0x38A6,
+    0x38A8,
+    0x38AA,
+    0x38AC,//===================
+    0x38B0,//===================
+    0x38B2,
+    0x38B4,
+    0x38B6,
+    0x38B8,
+    0x38BA,
+    0x38BC,
+    0x38BE,
+    0x38C0,
+    0x38C2,
+    0x38C4,
+    0x38C6,
+    0x38C8,
+    0x38CA,
+    0x38CC,
+    0x38CE,
+    0x38D0,
+    0x38D2,
+    0x38D4,
+    0x38D6,
+};
+static int32_t mt9p017_set_lc(void)
+{
+    int32_t rc;
+    bool bSuccess = FALSE;
+    bool bRWFinished = FALSE;
+    bool bRWSuccess = FALSE;
+    unsigned short j, i;
+    unsigned short OTPCheckValue = 0;
+    unsigned short DataStartType = 0x3100;
+    unsigned short mt9p017_reg_data[LC_TABLE_SIZE];
 
+    memset(mt9p017_reg_data, 0, sizeof(unsigned short)*LC_TABLE_SIZE);
+
+    CDBG("%s: Before read dataStartType = 0x%x\n", __func__, DataStartType);
+    while(!bSuccess)
+    {
+        rc = mt9p017_i2c_write_w(mt9p017_client->addr, 0x301A, 0x0610);//disable Stream
+        //if (rc < 0) goto set_eeprom_lc_fail;
+
+        rc = mt9p017_i2c_write_w(mt9p017_client->addr, 0x3134, 0xCD95);//timing parameters for OTPM read
+        //if (rc < 0) goto set_eeprom_lc_fail;
+
+        rc = mt9p017_i2c_write_w(mt9p017_client->addr, 0x304C, DataStartType);//0x304C [15:8] for record type
+        //if (rc < 0) goto set_eeprom_lc_fail;
+
+        rc = mt9p017_i2c_write_w(mt9p017_client->addr, 0x304A, 0x0200);//Only Read Single Record at a time
+        //if (rc < 0) goto set_eeprom_lc_fail;
+
+        rc = mt9p017_i2c_write_w(mt9p017_client->addr, 0x304A, 0x0210);//auto Read Start
+        //if (rc < 0) goto set_eeprom_lc_fail;
+
+        bRWFinished = FALSE;
+        bRWSuccess = FALSE;
+
+        for(j = 0; j<10; j++)//POLL Register 0x304A [6:5] = 11 //auto read success
+        {
+            msleep(10);
+            rc = mt9p017_i2c_read_w(mt9p017_client->addr, 0x304A, &OTPCheckValue);//auto Read Start
+            //if (rc < 0) goto set_eeprom_lc_fail;
+
+            CDBG("%s:read count=%d, CheckValue=0x%x", __func__, j, OTPCheckValue);
+            if(0xFFFF == (OTPCheckValue |0xFFDF))//finish
+            {
+                bRWFinished = TRUE;
+                if(0xFFFF == (OTPCheckValue |0xFFBF))//success
+                {
+                    bRWSuccess = TRUE;
+                }
+                break;
+            }
+        }
+        CDBG("%s: read DataStartType = 0x%x, bRWFinished = %d, bRWSuccess = %d", __func__,DataStartType, bRWFinished, bRWSuccess);
+
+        if(!bRWFinished)
+        {
+            CDBG("%s: read DataStartType Fail!", __func__);
+            goto OTPERR;
+        }
+        else
+        {
+            if(bRWSuccess)
+            {
+                switch(DataStartType)
+                {
+                    case 0x3000:
+                    case 0x3200:
+                    bSuccess = TRUE;
+                    break;
+
+                    case 0x3100:
+                    bSuccess = FALSE;
+                    DataStartType = 0x3000;
+                    break;
+                    
+                    default:
+                        break;
+                }
+            }
+            else
+            {
+                switch(DataStartType)
+                {
+                    case 0x3200:
+                    {
+                        bSuccess = FALSE;
+                        CDBG("%s: read DataStartType Error Times Twice!", __func__);
+                        goto OTPERR;
+                    }
+                    break;
+                    case 0x3100:
+                    {
+                        bSuccess = FALSE;
+                        DataStartType = 0x3200;
+                    }
+                    break;
+                    case 0x3000:
+                    {
+                        bSuccess = TRUE;
+                        DataStartType = 0x3100;
+                    }
+                    break;
+                    default:
+                        break;
+                }
+            }
+        }
+    }
+    CDBG("%s: after read DataStartType = 0x%x", __func__,DataStartType);
+
+    //read data
+    bSuccess = FALSE;
+    rc = mt9p017_i2c_write_w(mt9p017_client->addr, 0x301A, 0x0610);//disable Stream
+    //if (rc < 0) goto set_eeprom_lc_fail;
+
+    rc = mt9p017_i2c_write_w(mt9p017_client->addr, 0x3134, 0xCD95);//timing parameters for OTPM read
+    //if (rc < 0) goto set_eeprom_lc_fail;
+
+    rc = mt9p017_i2c_write_w(mt9p017_client->addr, 0x304C, DataStartType);//0x304C [15:8] for record type
+    //if (rc < 0) goto set_eeprom_lc_fail;
+
+    rc = mt9p017_i2c_write_w(mt9p017_client->addr, 0x304A, 0x0200);//Only Read Single Record at a time
+    //if (rc < 0) goto set_eeprom_lc_fail;
+
+    rc = mt9p017_i2c_write_w(mt9p017_client->addr, 0x304A, 0x0210);//auto Read Start
+    //if (rc < 0) goto set_eeprom_lc_fail;
+    
+    for(j = 0; j<10; j++)//POLL Register 0x304A [6:5] = 11 //auto read success
+    {
+        msleep(10);
+        rc = mt9p017_i2c_read_w(mt9p017_client->addr, 0x304A, &OTPCheckValue);//auto Read Start
+        //if (rc < 0) goto set_eeprom_lc_fail;
+
+        CDBG("%s:read count=%d, CheckValue=0x%x", __func__, j, OTPCheckValue);
+        if(0xFFFF == (OTPCheckValue |0xFFDF))//finish
+        {
+            bRWFinished = TRUE;
+            if(0xFFFF == (OTPCheckValue |0xFFBF))//success
+            {
+                bRWSuccess = TRUE;
+            }
+            break;
+        }
+    }
+
+    CDBG("%s:: read DataStartType(step2) = 0x%x, bRWFinished = %d, bRWSuccess = %d", __func__,DataStartType, bRWFinished, bRWSuccess);
+    if(!bRWFinished ||!bRWSuccess)
+    {
+        CDBG("%s: read DataStartType Error!Failed!", __func__);
+        goto OTPERR;
+    }
+    else 
+    {
+        CDBG("%s:read 0x3800 to 0x39FE for the written data", __func__);
+        for(i = 0; i<LC_TABLE_SIZE; i++)//READ 0x3800 to 0x39FE for the written data
+        {	
+            rc = mt9p017_i2c_read_w(mt9p017_client->addr, mt9p017_eeprom_table[i], &OTPCheckValue);
+            mt9p017_reg_data[i] = OTPCheckValue;
+            CDBG("%s:read:mt9p017_eeprom_table[%d]=0x%x,mt9p017_reg_data[%d]=0x%x",__func__,i,mt9p017_eeprom_table[i], i,mt9p017_reg_data[i]);
+        }
+        
+        bSuccess = TRUE;
+    }
+OTPERR:
+    if (bSuccess)
+    {
+        //write lens shading to sensor registers
+        for(i=0;i<LC_TABLE_SIZE;i++)
+        {
+            rc = mt9p017_i2c_write_w(mt9p017_client->addr, (mt9p017_regs.rftbl + i)->waddr, mt9p017_reg_data[i]);
+        }
+        rc = mt9p017_i2c_write_w(mt9p017_client->addr, 0x3780, 0x8000);
+
+        CDBG("%s: OTP Check OK!!!  rc = %d", __func__,rc);
+    }
+    else
+    {
+        CDBG("%s: OTP Check Fail Write Fail!", __func__);
+        rc = mt9p017_i2c_write_w_table(mt9p017_regs.rftbl,mt9p017_regs.rftbl_size);
+        CDBG("%s: OTP Check Fail rc = %d", __func__,rc);
+    } 
+    return rc;
+}
+#endif
+/*DTS2012051702530  wangqing 20120523 end>*/
 static int32_t mt9p017_load_pixel_timing(void)
 {
     int32_t rc;
 
     rc = mt9p017_i2c_write_w_table(mt9p017_regs.pttbl,
                                    mt9p017_regs.pttbl_size);
-
     return rc;
 }
 
@@ -490,7 +715,6 @@ static int32_t mt9p017_load_settings(void)
 
     rc = mt9p017_i2c_write_w_table(mt9p017_regs.rec_settings,
                                    mt9p017_regs.rec_size);
-
     return rc;
 }
 
@@ -502,24 +726,16 @@ static void mt9p017_get_pict_fps(uint16_t fps, uint16_t *pfps)
     uint32_t d1;
     uint32_t d2;
 
-    d1 =
-        (uint32_t)(
-        (mt9p017_regs.reg_pat[RES_PREVIEW].frame_length_lines *
-         0x00000400) /
-        mt9p017_regs.reg_pat[RES_CAPTURE].frame_length_lines);
+    d1 = (uint32_t)((mt9p017_regs.reg_pat[RES_PREVIEW].frame_length_lines * 0x00000400) /
+                        mt9p017_regs.reg_pat[RES_CAPTURE].frame_length_lines);
 
-    d2 =
-        (uint32_t)(
-        (mt9p017_regs.reg_pat[RES_PREVIEW].line_length_pck *
-         0x00000400) /
-        mt9p017_regs.reg_pat[RES_CAPTURE].line_length_pck);
+    d2 = (uint32_t)((mt9p017_regs.reg_pat[RES_PREVIEW].line_length_pck * 0x00000400) /
+                        mt9p017_regs.reg_pat[RES_CAPTURE].line_length_pck);
 
     divider = (uint32_t) (d1 * d2) / 0x00000400;
 
-    pclk_mult =
-        (uint32_t) ((mt9p017_regs.reg_pat[RES_CAPTURE].pll_multiplier *
-                     0x00000400) /
-                    (mt9p017_regs.reg_pat[RES_PREVIEW].pll_multiplier));
+    pclk_mult = (uint32_t) ((mt9p017_regs.reg_pat[RES_CAPTURE].pll_multiplier * 0x00000400) /
+                        (mt9p017_regs.reg_pat[RES_PREVIEW].pll_multiplier));
 
     /* Verify PCLK settings and frame sizes. */
     *pfps = (uint16_t) (fps * divider * pclk_mult / 0x00000400 /
@@ -855,13 +1071,14 @@ static int32_t mt9p017_setting(enum mt9p017_reg_update rupdate,
         break;      /* UPDATE_PERIODIC */
 
     case REG_INIT:
+        CDBG("mt9p017_setting: case REG_INIT !!\n");
         if ((rt == RES_PREVIEW) || (rt == RES_CAPTURE))
         {
             struct mt9p017_i2c_reg_conf ipc_tbl1[] =
             {
-                {             0x301A, 0x0018}, //reset_register
-                {             0x3064, 0x5840}, //smia_test_2lane_mipi
-                {             0x31AE, 0x0201}, //dual_lane_MIPI_interface
+                {0x301A, 0x0018}, //reset_register
+                {0x3064, 0x5840}, //smia_test_2lane_mipi
+                {0x31AE, 0x0201}, //dual_lane_MIPI_interface
                 {REG_VT_PIX_CLK_DIV,
                  mt9p017_regs.reg_pat[rt].vt_pix_clk_div},
                 {REG_VT_SYS_CLK_DIV,
@@ -1097,7 +1314,7 @@ static void mt9p017_set_af_init(void)
             mt9p017_step_position_table[i] = mt9p017_step_position_table[i - 1] + mt9p017_l_region_code_per_step4;
         }
 
-        CDBG("Step Pos Tbl Value: %hd\n", mt9p017_step_position_table[i]);
+        //CDBG("Step Pos Tbl Value: %hd\n", mt9p017_step_position_table[i]);
     }
 }
 
@@ -1248,6 +1465,7 @@ static int32_t mt9p017_set_default_focus(void)
 
 static int mt9p017_probe_init_done(const struct msm_camera_sensor_info *data)
 {
+    /*
     gpio_direction_output(data->sensor_reset, 0);
     gpio_free(data->sensor_reset);
 
@@ -1260,8 +1478,17 @@ static int mt9p017_probe_init_done(const struct msm_camera_sensor_info *data)
     if (data->vreg_disable_func)
     {
         data->vreg_disable_func(data->sensor_vreg, data->vreg_num);
+    }*/
+    CDBG("probe done\n");
+    gpio_free(data->sensor_reset);
+
+    /*< DTS2012012901317 yuguangcai 20120131 begin */
+    /*disable the power*/
+    if (data->vreg_disable_func)
+    {
+        data->vreg_disable_func(0);
     }
-    
+    /* DTS2012012901317 yuguangcai 20120131 end > */
     return 0;
 }
 
@@ -1270,17 +1497,7 @@ static int mt9p017_probe_init_sensor(const struct msm_camera_sensor_info *data)
     int32_t rc;
     uint16_t chipid;
 
-    /* pull down power down */
-    rc = gpio_request(data->sensor_pwd, "mt9p017");
-    if (!rc || (rc == -EBUSY))
-    {
-        gpio_direction_output(data->sensor_pwd, 0);
-    }
-    else
-    {
-        goto init_probe_fail;
-    }
-
+    CDBG(" mt9p017_probe_init_sensor is called\n");
     rc = gpio_request(data->sensor_reset, "mt9p017");
     if (!rc)
     {
@@ -1293,26 +1510,7 @@ static int mt9p017_probe_init_sensor(const struct msm_camera_sensor_info *data)
 
     msleep(20);
 
-    if (data->vreg_enable_func)
     {
-        rc = data->vreg_enable_func(data->sensor_vreg, data->vreg_num);
-        if (rc < 0)
-        {
-            goto init_probe_fail;
-        }
-    }
-
-    mdelay(20);
-
-    {
-        rc = gpio_direction_output(data->sensor_pwd, 1);
-        if (rc < 0)
-        {
-            goto init_probe_fail;
-        }
-
-        mdelay(20);
-
         /*hardware reset*/
         rc = gpio_direction_output(data->sensor_reset, 0);
         if (rc < 0)
@@ -1320,24 +1518,20 @@ static int mt9p017_probe_init_sensor(const struct msm_camera_sensor_info *data)
             goto init_probe_fail;
         }
 
+        /*< DTS2012012901317 yuguangcai 20120131 begin */
+        /*enable the power*/
+        mdelay(10);
+        if (data->vreg_enable_func)
+        {
+            data->vreg_enable_func(1);
+        }  
+        /* DTS2012012901317 yuguangcai 20120131 end > */
         mdelay(20);
         rc = gpio_direction_output(data->sensor_reset, 1);
         if (rc < 0)
         {
             goto init_probe_fail;
         }
-    }
-
-    /* Pull the vcm gpio at probe */
-    rc = gpio_request(data->vcm_pwd, "mt9p017");
-    if (!rc)
-    {
-        gpio_direction_output(data->vcm_pwd, 1);
-    }
-    else
-    {
-        CDBG("mt9p017_ctrl gpio request failed!\n");
-        goto init_probe_fail;
     }
 
     msleep(20);
@@ -1356,7 +1550,7 @@ static int mt9p017_probe_init_sensor(const struct msm_camera_sensor_info *data)
     /* 4. Compare sensor ID to MT9T012VC ID: */
     if (chipid != MT9P017_MODEL_ID)
     {
-        CDBG("mt9p017 wrong model_id = 0x%x\n", chipid);
+        CDBG("mt9p017 wrong model_id = 0x%x, doesnot match .\n", chipid);
         rc = -ENODEV;
         goto init_probe_fail;
     }
@@ -1364,6 +1558,7 @@ static int mt9p017_probe_init_sensor(const struct msm_camera_sensor_info *data)
     goto init_probe_done;
 
 init_probe_fail:
+    CDBG(" mt9p017_probe_init_sensor fails\n");
     mt9p017_probe_init_done(data);
 init_probe_done:
     return rc;
@@ -1373,6 +1568,8 @@ static int mt9p017_sensor_open_init(const struct msm_camera_sensor_info *data)
 {
     int32_t rc;
 
+    CDBG("mt9p017_sensor_open_init called !\n");
+
     mt9p017_ctrl = kzalloc(sizeof(struct mt9p017_ctrl), GFP_KERNEL);
     if (!mt9p017_ctrl)
     {
@@ -1380,8 +1577,6 @@ static int mt9p017_sensor_open_init(const struct msm_camera_sensor_info *data)
         rc = -ENOMEM;
         goto init_done;
     }
-
-    CDBG("mt9p017_sensor_open_init !\n");
 
     mt9p017_ctrl->fps_divider = 1 * 0x00000400;
     mt9p017_ctrl->pict_fps_divider = 1 * 0x00000400;
@@ -1410,12 +1605,16 @@ static int mt9p017_sensor_open_init(const struct msm_camera_sensor_info *data)
         goto init_fail1;
     }
 
+    CDBG("mt9p017_load_settings succeed. rc = %d\n", rc);
+
     rc = mt9p017_load_pixel_timing();
     if (rc < 0)
     {
         CDBG("mt9p017_load_pixel_timing failed. rc = %d\n", rc);
         goto init_fail1;
     }
+
+    CDBG("mt9p017_load_pixel_timing succeed. rc = %d\n", rc);
 
     if (mt9p017_ctrl->prev_res == QTR_SIZE)
     {
@@ -1434,16 +1633,6 @@ static int mt9p017_sensor_open_init(const struct msm_camera_sensor_info *data)
 
     /* sensor : output enable */
     CDBG("mt9p017_sensor_open_init(): enabling output.\n");
-
-    //jkoh: comment this out or not?  BMP doesn't have it.
-    //rc = mt9p017_i2c_write_w(mt9p017_client->addr,
-    //			 MT9P017_REG_RESET_REGISTER,
-    //			 MT9P017_RESET_REGISTER_PWON);
-    //if (rc < 0) {
-    //	CDBG("sensor output enable failed. rc = %d\n", rc);
-    //	goto init_fail1;
-    //}
-    //--
 
     rc = mt9p017_i2c_write_b(mt9p017_client->addr,
                              MT9P017_REG_MODE_SELECT,
@@ -1478,7 +1667,7 @@ static int mt9p017_sensor_open_init(const struct msm_camera_sensor_info *data)
         CDBG("AF Table INIT\n");
         mt9p017_set_af_init();
     }
-    
+
     if (rc >= 0)
     {
         goto init_done;
@@ -1660,18 +1849,6 @@ int mt9p017_sensor_config(void __user *argp)
 
         break;
 
-    case CFG_SET_NR:
-        CDBG("%s: CFG_SET_NR\n", __func__);
-        rc = mt9p017_set_noise_cancel(cdata.cfg.lut_index);
-        break;
-
-    case CFG_RESET:
-        CDBG("%s: CFG_RESET\n", __func__);
-
-        //rc = mt9p017_i2c_write_w(mt9p017_client->addr,
-        //	 MT9P017_REG_RESET_REGISTER, 0x0018 | 0x0002);
-        break;
-
     case CFG_SET_EFFECT:
     default:
         rc = -EINVAL;
@@ -1695,10 +1872,17 @@ int mt9p017_sensor_release(void)
 
     gpio_direction_output(mt9p017_ctrl->sensordata->sensor_pwd, 0);
     gpio_free(mt9p017_ctrl->sensordata->sensor_pwd);
-    
+
     gpio_direction_output(mt9p017_ctrl->sensordata->vcm_pwd, 0);
     gpio_free(mt9p017_ctrl->sensordata->vcm_pwd);
 
+    /*< DTS2012012901317 yuguangcai 20120131 begin */
+    /*disable the power*/
+    if (mt9p017_ctrl->sensordata->vreg_disable_func)
+    {
+        mt9p017_ctrl->sensordata->vreg_disable_func(0);
+    }
+    /* DTS2012012901317 yuguangcai 20120131 end > */
     kfree(mt9p017_ctrl);
     mt9p017_ctrl = NULL;
 
@@ -1767,6 +1951,7 @@ static int mt9p017_sensor_probe(const struct msm_camera_sensor_info *info,
     if ((rc < 0) || (mt9p017_client == NULL))
     {
         rc = -ENOTSUPP;
+        CDBG("i2c driver add failed .");
         goto probe_done;
     }
 
@@ -1778,31 +1963,42 @@ static int mt9p017_sensor_probe(const struct msm_camera_sensor_info *info,
     if (rc < 0)
     {
         i2c_del_driver(&mt9p017_i2c_driver);
+        CDBG("mt9p017_probe_init_sensor failed .");
         goto probe_done;
     }
     else
     {
+        /* <DTS2012041003722 sibingsong 20120410 begin */
+        /* < DTS2012031904303 zhouqiwei 20130319 begin */
+        /* camera name for project menu to display */
+        strncpy((char *)info->sensor_name, "23060069FA-MT-S", strlen("23060069FA-MT-S"));
+        /* DTS2012031904303 zhouqiwei 20130319 end > */
+        /* DTS2012041003722 sibingsong 20120410 end> */
         CDBG("camera sensor mt9p017 probe is succeed!!!\n");
     }
-
+/* <DTS2011112400871 sunwenyong 20111124 begin */
+#ifdef CONFIG_HUAWEI_HW_DEV_DCT
+    /* detect current device successful, set the flag as present */
+    set_hw_dev_flag(DEV_I2C_CAMERA_MAIN);
+#endif
+/* DTS2011112400871 sunwenyong 20111124 end> */
     s->s_init = mt9p017_sensor_open_init;
     s->s_release = mt9p017_sensor_release;
     s->s_config = mt9p017_sensor_config;
-	s->s_camera_type = BACK_CAMERA_2D;
-	/* if machine is U8680, rotate the camera with 180 degree */
-	if (machine_is_msm8255_u8680())
-	{
-        s->s_mount_angle = 180;
-	}
-	else
-	{
-        s->s_mount_angle = 0;
-	}
-
+/* <DTS2012032603420 sibingsong 20120326 begin */
+#ifdef CONFIG_ARCH_MSM7X27A
+    /*<  DTS2011101301987   yuguangcai 20111013 begin */
+    /*set the s_mount_angle value of sensor*/
+    s->s_mount_angle = info->sensor_platform_info->mount_angle;
+    /* DTS2011101301987   yuguangcai 20111013 end > */
+#else
+    s->s_mount_angle = 0 ;
+#endif
+/* DTS2012032603420 sibingsong 20120326 end> */
     mt9p017_probe_init_done(info);
 
 probe_done:
-    CDBG("%s %s:%d\n", __FILE__, __func__, __LINE__);
+    CDBG("%s:%d\n", __func__, __LINE__);
 
     return rc;
 }
@@ -1828,3 +2024,5 @@ static int __init mt9p017_init(void)
 
 module_init(mt9p017_init);
 
+/* DTS2011092106898   yuguangcai 20110924 end > */
+/* DTS2012020400396 zhangyu 20120206 end > */

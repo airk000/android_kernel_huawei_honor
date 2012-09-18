@@ -1,4 +1,4 @@
-/* Copyright (c) 2009-2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2009-2012, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -797,6 +797,7 @@ static struct pm8058_platform_data pm8058_7x30_data = {
 
 #ifdef CONFIG_MSM_SSBI
 static struct msm_ssbi_platform_data msm7x30_ssbi_pm8058_pdata = {
+	.rsl_id = "D:PMIC_SSBI",
 	.controller_type = MSM_SBI_CTRL_SSBI2,
 	.slave	= {
 		.name			= "pm8058-core",
@@ -2143,10 +2144,10 @@ static int marimba_tsadc_exit(void)
 
 
 static struct msm_ts_platform_data msm_ts_data = {
-	.min_x          = 0,
-	.max_x          = 4096,
-	.min_y          = 0,
-	.max_y          = 4096,
+	.min_x          = 284,
+	.max_x          = 3801,
+	.min_y          = 155,
+	.max_y          = 3929,
 	.min_press      = 0,
 	.max_press      = 255,
 	.inv_x          = 4096,
@@ -2948,6 +2949,11 @@ static struct msm_pm_platform_data msm_pm_data[MSM_PM_SLEEP_MODE_NR] = {
 	},
 };
 
+static struct msm_pm_boot_platform_data msm_pm_boot_pdata __initdata = {
+	.mode = MSM_PM_BOOT_CONFIG_RESET_VECTOR_VIRT,
+	.v_addr = (uint32_t *)PAGE_OFFSET,
+};
+
 static struct resource qsd_spi_resources[] = {
 	{
 		.name   = "spi_irq_in",
@@ -3209,7 +3215,6 @@ static struct msm_otg_platform_data msm_otg_pdata = {
 #else
 	.vbus_power = msm_hsusb_vbus_power,
 #endif
-	.core_clk		 = 1,
 	.pemp_level		 = PRE_EMPHASIS_WITH_20_PERCENT,
 	.cdr_autoreset		 = CDR_AUTO_RESET_DISABLE,
 	.drv_ampl		 = HS_DRV_AMPLITUDE_DEFAULT,
@@ -3857,6 +3862,8 @@ static struct msm_ce_hw_support qcrypto_ce_hw_suppport = {
 	.shared_ce_resource = QCE_SHARE_CE_RESOURCE,
 	.hw_key_support = QCE_HW_KEY_SUPPORT,
 	.sha_hmac = QCE_SHA_HMAC_SUPPORT,
+	/* Bus Scaling declaration*/
+	.bus_scale_table = NULL,
 };
 
 static struct platform_device qcrypto_device = {
@@ -3879,6 +3886,8 @@ static struct msm_ce_hw_support qcedev_ce_hw_suppport = {
 	.shared_ce_resource = QCE_SHARE_CE_RESOURCE,
 	.hw_key_support = QCE_HW_KEY_SUPPORT,
 	.sha_hmac = QCE_SHA_HMAC_SUPPORT,
+	/* Bus Scaling declaration*/
+	.bus_scale_table = NULL,
 };
 static struct platform_device qcedev_device = {
 	.name		= "qce",
@@ -6096,8 +6105,23 @@ static void __init msm7x30_init_mmc(void)
 #ifdef CONFIG_MMC_MSM_SDC1_SUPPORT
 	if (mmc_regulator_init(1, "s3", 1800000))
 		goto out1;
+	if ( machine_is_msm7x30_fluid() 
+	|| (machine_is_msm7x30_u8800()) 
+	|| (machine_is_msm7x30_u8820()) 
+	|| (machine_is_msm7x30_u8800_51()) 
+	|| (machine_is_msm8255_u8800_pro())
+	|| (machine_is_msm8255_u8860())
+	|| (machine_is_msm8255_c8860())
+    || (machine_is_msm8255_u8860lp())
+    /* < DTS2012022905490 ganfan 20120301 begin */
+    || machine_is_msm8255_u8860_r()
+    /* DTS2012022905490 ganfan 20120301 end > */
+    || (machine_is_msm8255_u8860_92())
+	|| (machine_is_msm8255_u8680())
+	|| (machine_is_msm8255_u8860_51())
+	|| (machine_is_msm8255_u8730()))
+    {
 
-	if (machine_is_msm7x30_fluid()) {
 		msm7x30_sdc1_data.ocr_mask =  MMC_VDD_27_28 | MMC_VDD_28_29;
 		if (msm_sdc1_lvlshft_enable()) {
 			pr_err("%s: could not enable level shift\n");
@@ -6340,6 +6364,10 @@ static int tsc2007_power_shutdown(bool enable)
 static struct tsc2007_platform_data tsc2007_ts_data = {
 	.model = 2007,
 	.x_plate_ohms = 300,
+	.min_x		= 210,
+	.max_x		= 3832,
+	.min_y		= 150,
+	.max_y		= 3936,
 	.irq_flags    = IRQF_TRIGGER_LOW,
 	.init_platform_hw = tsc2007_init,
 	.exit_platform_hw = tsc2007_exit,
@@ -6710,8 +6738,7 @@ static void __init msm7x30_init(void)
 	hdmi_init_regs();
 	msm_fb_add_devices();
 	msm_pm_set_platform_data(msm_pm_data, ARRAY_SIZE(msm_pm_data));
-	BUG_ON(msm_pm_boot_init(MSM_PM_BOOT_CONFIG_RESET_VECTOR,
-				(uint32_t *)PAGE_OFFSET));
+	BUG_ON(msm_pm_boot_init(&msm_pm_boot_pdata));
 	msm_device_i2c_init();
 	msm_device_i2c_2_init();
 	qup_device_i2c_init();

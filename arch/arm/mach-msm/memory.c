@@ -1,7 +1,7 @@
 /* arch/arm/mach-msm/memory.c
  *
  * Copyright (C) 2007 Google, Inc.
- * Copyright (c) 2009-2011, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2009-2012, Code Aurora Forum. All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -296,10 +296,11 @@ static void __init reserve_memory_for_mempools(void)
 		if (mt->flags & MEMTYPE_FLAGS_FIXED || !mt->size)
 			continue;
 
-		/* We know we will find a memory bank of the proper size
+		/* We know we will find memory bank(s) of the proper size
 		 * as we have limited the size of the memory pool for
-		 * each memory type to the size of the largest memory
-		 * bank. Choose the memory bank with the highest physical
+		 * each memory type to the largest total size of the memory
+		 * banks which are contiguous and of the correct memory type.
+		 * Choose the memory bank with the highest physical
 		 * address which is large enough, so that we will not
 		 * take memory from the lowest memory bank which the kernel
 		 * is in (and cause boot problems) and so that we might

@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2007 Google, Inc.
- * Copyright (c) 2008-2011, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2008-2012, Code Aurora Forum. All rights reserved.
  * Author: Brian Swetland <swetland@google.com>
  *
  * This software is licensed under the terms of the GNU General Public
@@ -242,7 +242,6 @@ static struct msm_otg_platform_data msm_otg_pdata = {
 #endif
 	.ldo_init		= msm_hsusb_ldo_init,
 	.pclk_required_during_lpm = 1,
-	.pclk_src_name		= "ebi1_usb_clk",
 };
 
 #ifdef CONFIG_USB_GADGET
@@ -1625,6 +1624,11 @@ static struct msm_pm_platform_data msm7x27_pm_data[MSM_PM_SLEEP_MODE_NR] = {
 	},
 };
 
+static struct msm_pm_boot_platform_data msm_pm_boot_pdata __initdata = {
+	.mode = MSM_PM_BOOT_CONFIG_RESET_VECTOR_PHYS,
+	.p_addr = 0,
+};
+
 static void
 msm_i2c_gpio_config(int iface, int config_type)
 {
@@ -1752,10 +1756,7 @@ static void __init msm7x2x_init(void)
 		}
 	}
 #endif
-	if (cpu_is_msm7x27())
-		acpuclk_init(&acpuclk_7x27_soc_data);
-	else
-		acpuclk_init(&acpuclk_7201_soc_data);
+	acpuclk_init(&acpuclk_7x27_soc_data);
 
 	usb_mpp_init();
 
@@ -1818,8 +1819,8 @@ static void __init msm7x2x_init(void)
 		msm_pm_set_platform_data(msm7x25_pm_data,
 					ARRAY_SIZE(msm7x25_pm_data));
 
-	BUG_ON(msm_pm_boot_init(MSM_PM_BOOT_CONFIG_RESET_VECTOR,
-				ioremap(0, PAGE_SIZE)));
+	BUG_ON(msm_pm_boot_init(&msm_pm_boot_pdata));
+
 	msm7x27_wlan_init();
 }
 

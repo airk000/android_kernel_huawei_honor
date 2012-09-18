@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -31,6 +31,7 @@ struct diag_bridge {
 	struct usb_anchor	submitted;
 	__u8			in_epAddr;
 	__u8			out_epAddr;
+	int			err;
 	struct kref		kref;
 	struct diag_bridge_ops	*ops;
 	struct platform_device	*pdev;
@@ -47,6 +48,7 @@ int diag_bridge_open(struct diag_bridge_ops *ops)
 	}
 
 	dev->ops = ops;
+	dev->err = 0;
 
 	return 0;
 }
@@ -72,13 +74,19 @@ static void diag_bridge_read_cb(struct urb *urb)
 	dev_dbg(&dev->udev->dev, "%s: status:%d actual:%d\n", __func__,
 			urb->status, urb->actual_length);
 
+	if (urb->status == -EPROTO) {
+		/* save error so that subsequent read/write returns ESHUTDOWN */
+		dev->err = urb->status;
+		return;
+	}
+
 	cbs->read_complete_cb(cbs->ctxt,
 			urb->transfer_buffer,
 			urb->transfer_buffer_length,
 			urb->status < 0 ? urb->status : urb->actual_length);
 }
 
-int diag_bridge_read(char *data, size_t size)
+int diag_bridge_read(char *data, int size)
 {
 	struct urb		*urb = NULL;
 	unsigned int		pipe;
@@ -96,6 +104,10 @@ int diag_bridge_read(char *data, size_t size)
 		dev_err(&dev->udev->dev, "device is disconnected\n");
 		return -ENODEV;
 	}
+
+	/* if there was a previous unrecoverable error, just quit */
+	if (dev->err)
+		return -ESHUTDOWN;
 
 	urb = usb_alloc_urb(0, GFP_ATOMIC);
 	if (!urb) {
@@ -129,13 +141,19 @@ static void diag_bridge_write_cb(struct urb *urb)
 
 	dev_dbg(&dev->udev->dev, "%s:\n", __func__);
 
+	if (urb->status == -EPROTO) {
+		/* save error so that subsequent read/write returns ESHUTDOWN */
+		dev->err = urb->status;
+		return;
+	}
+
 	cbs->write_complete_cb(cbs->ctxt,
 			urb->transfer_buffer,
 			urb->transfer_buffer_length,
 			urb->status < 0 ? urb->status : urb->actual_length);
 }
 
-int diag_bridge_write(char *data, size_t size)
+int diag_bridge_write(char *data, int size)
 {
 	struct urb		*urb = NULL;
 	unsigned int		pipe;
@@ -153,6 +171,10 @@ int diag_bridge_write(char *data, size_t size)
 		dev_err(&dev->udev->dev, "device is disconnected\n");
 		return -ENODEV;
 	}
+
+	/* if there was a previous unrecoverable error, just quit */
+	if (dev->err)
+		return -ESHUTDOWN;
 
 	urb = usb_alloc_urb(0, GFP_ATOMIC);
 	if (!urb) {
@@ -272,6 +294,10 @@ static void diag_bridge_disconnect(struct usb_interface *ifc)
 #define VALID_INTERFACE_NUM	0
 static const struct usb_device_id diag_bridge_ids[] = {
 	{ USB_DEVICE(0x5c6, 0x9001),
+	.driver_info = VALID_INTERFACE_NUM, },
+	{ USB_DEVICE(0x5c6, 0x9034),
+	.driver_info = VALID_INTERFACE_NUM, },
+	{ USB_DEVICE(0x5c6, 0x9048),
 	.driver_info = VALID_INTERFACE_NUM, },
 
 	{} /* terminating entry */

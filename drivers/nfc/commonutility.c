@@ -1,3 +1,5 @@
+/* < DTS2011042602168 caomingxing 20110426 begin */
+/* < DTS2011011904316 genghua 20110121 begin */
 /* This file is imported by genghua in order to 
  * support temp nfc test before the HAL and the Up-level code
  * is added to our project.
@@ -140,3 +142,5 @@ int ASC_2_BCD(unsigned char *src, unsigned char *dest, int *srcLen)
 }
 
 
+/* DTS2011011904316 genghua 20110121 end >*/
+/* DTS2011042602168 caomingxing 20110426 end > */

@@ -143,7 +143,6 @@ static int pm8xxx_irq_block_handler(struct pm_irq_chip *chip, int block)
 	int pmirq, irq, i, ret = 0;
 	u8 bits;
 
-	printk("enter %s\n",__func__);
 	ret = pm8xxx_read_block_irq(chip, block, &bits);
 	if (ret) {
 		pr_err("Failed reading %d block ret=%d", block, ret);
@@ -162,7 +161,6 @@ static int pm8xxx_irq_block_handler(struct pm_irq_chip *chip, int block)
 			generic_handle_irq(irq);
 		}
 	}
-	printk("leave %s\n",__func__);
 	return 0;
 }
 
@@ -171,7 +169,6 @@ static int pm8xxx_irq_master_handler(struct pm_irq_chip *chip, int master)
 	u8 blockbits;
 	int block_number, i, ret = 0;
 
-	printk("enter %s\n",__func__);
 	ret = pm8xxx_read_master_irq(chip, master, &blockbits);
 	if (ret) {
 		pr_err("Failed to read master %d ret=%d\n", master, ret);
@@ -187,8 +184,6 @@ static int pm8xxx_irq_master_handler(struct pm_irq_chip *chip, int master)
 			block_number = master * 8 + i;	/* block # */
 			ret |= pm8xxx_irq_block_handler(chip, block_number);
 		}
-	
-	printk("leave %s\n",__func__);
 	return ret;
 }
 
@@ -198,7 +193,6 @@ static irqreturn_t pm8xxx_irq_handler(int irq, void *data)
 	u8	root;
 	int	i, ret, masters = 0;
 
-	printk("enter pm8xxx_irq_handler\n");
 	ret = pm8xxx_read_root_irq(chip, &root);
 	if (ret) {
 		pr_err("Can't read root status ret=%d\n", ret);
@@ -213,7 +207,6 @@ static irqreturn_t pm8xxx_irq_handler(int irq, void *data)
 		if (masters & (1 << i))
 			pm8xxx_irq_master_handler(chip, i);
 
-	printk("leave pm8xxx_irq_handler master%d,%d\n",masters,chip->num_masters);
 	return IRQ_HANDLED;
 }
 

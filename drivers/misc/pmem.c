@@ -1,7 +1,7 @@
 /* drivers/android/pmem.c
  *
  * Copyright (C) 2007 Google, Inc.
- * Copyright (c) 2009-2011, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2009-2012, Code Aurora Forum. All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -18,6 +18,7 @@
 #include <linux/platform_device.h>
 #include <linux/fs.h>
 #include <linux/file.h>
+#include <linux/fmem.h>
 #include <linux/mm.h>
 #include <linux/list.h>
 #include <linux/debugfs.h>
@@ -168,11 +169,12 @@ struct pmem_info {
 
 	/* actual size of memory element, e.g.: (4 << 10) is 4K */
 	unsigned int quantum;
-
+    /* < DTS2012031903751 lizhigang 20120319 begin */
 #ifdef CONFIG_HUAWEI_KERNEL
 	/* the max allocated size the whole time  */
 	unsigned int allocated_max_quanta;
 #endif
+    /* DTS2012031903751 lizhigang 20120319 end > */
 	/* indicates maps of this region should be cached, if a mix of
 	 * cached and uncached is desired, set this and open the device with
 	 * O_SYNC to get an uncached region */
@@ -233,12 +235,12 @@ struct pmem_info {
 	 * request function for a region when the allocation count goes
 	 * from 0 -> 1
 	 */
-	void (*mem_request)(void *);
+	int (*mem_request)(void *);
 	/*
 	 * release function for a region when the allocation count goes
 	 * from 1 -> 0
 	 */
-	void (*mem_release)(void *);
+	int (*mem_release)(void *);
 	/*
 	 * private data for the request/release callback
 	 */
@@ -247,6 +249,10 @@ struct pmem_info {
 	 * map and unmap as needed
 	 */
 	int map_on_demand;
+	/*
+	 * memory will be reused through fmem
+	 */
+	int reusable;
 };
 #define to_pmem_info_id(a) (container_of(a, struct pmem_info, kobj)->id)
 
@@ -456,6 +462,7 @@ static ssize_t show_pmem_quantum_size(int id, char *buf)
 }
 RO_PMEM_ATTR(quantum_size);
 
+/* < DTS2012031903751 lizhigang 20120319 begin */
 #ifdef CONFIG_HUAWEI_KERNEL
 static ssize_t show_pmem_max_allocated_quanta(int id, char *buf)
 {
@@ -466,6 +473,7 @@ static ssize_t show_pmem_max_allocated_quanta(int id, char *buf)
 
 RO_PMEM_ATTR(max_allocated_quanta);
 #endif
+/* DTS2012031903751 lizhigang 20120319 end > */
 
 static ssize_t show_pmem_buddy_bitmap_dump(int id, char *buf)
 {
@@ -548,10 +556,11 @@ static struct attribute *pmem_bitmap_attrs[] = {
 
 	&pmem_attr_free_quanta.attr,
 	&pmem_attr_bits_allocated.attr,
+    /* < DTS2012031903751 lizhigang 20120319 begin */
 #ifdef CONFIG_HUAWEI_KERNEL
 	&pmem_attr_max_allocated_quanta.attr,
 #endif
-
+    /* DTS2012031903751 lizhigang 20120319 end > */
 	NULL
 };
 
@@ -600,8 +609,13 @@ static int pmem_get_region(int id)
 	atomic_inc(&pmem[id].allocation_cnt);
 	if (!pmem[id].vbase) {
 		DLOG("PMEMDEBUG: mapping for %s", pmem[id].name);
-		if (pmem[id].mem_request)
-				pmem[id].mem_request(pmem[id].region_data);
+		if (pmem[id].mem_request) {
+			int ret = pmem[id].mem_request(pmem[id].region_data);
+			if (ret) {
+				atomic_dec(&pmem[id].allocation_cnt);
+				return 1;
+			}
+		}
 		ioremap_pmem(id);
 	}
 
@@ -628,8 +642,11 @@ static void pmem_put_region(int id)
 			unmap_kernel_range((unsigned long)pmem[id].vbase,
 				 pmem[id].size);
 			pmem[id].vbase = NULL;
-			if (pmem[id].mem_release)
-				pmem[id].mem_release(pmem[id].region_data);
+			if (pmem[id].mem_release) {
+				int ret = pmem[id].mem_release(
+						pmem[id].region_data);
+				WARN(ret, "mem_release failed");
+			}
 
 		}
 	}
@@ -1344,12 +1361,14 @@ static int pmem_allocator_bitmap(const int id,
 	pmem[id].allocator.bitmap.bitmap_free -= quanta_needed;
 	pmem[id].allocator.bitmap.bitm_alloc[i].bit = bitnum;
 	pmem[id].allocator.bitmap.bitm_alloc[i].quanta = quanta_needed;
+    /* < DTS2012031903751 lizhigang 20120319 begin */
 #ifdef CONFIG_HUAWEI_KERNEL
 	/* save the max allocated quanta when alloc pmem */
 	if ((pmem[id].num_entries - pmem[id].allocator.bitmap.bitmap_free) > pmem[id].allocated_max_quanta){
 		pmem[id].allocated_max_quanta = pmem[id].num_entries - pmem[id].allocator.bitmap.bitmap_free;
 	}
 #endif
+    /* DTS2012031903751 lizhigang 20120319 end > */
 leave:
 	return bitnum;
 }
@@ -2605,6 +2624,7 @@ int pmem_setup(struct android_pmem_platform_data *pdata,
 {
 	int i, index = 0, id;
 	struct vm_struct *pmem_vma = NULL;
+	struct page *page;
 
 	if (id_count >= PMEM_MAX_DEVICES) {
 		pr_alert("pmem: %s: unable to register driver(%s) - no more "
@@ -2805,27 +2825,44 @@ int pmem_setup(struct android_pmem_platform_data *pdata,
 
 	pmem[id].base = allocate_contiguous_memory_nomap(pmem[id].size,
 		pmem[id].memory_type, PAGE_SIZE);
+	if (!pmem[id].base) {
+		pr_err("pmem: Cannot allocate from reserved memory for %s\n",
+		 pdata->name);
+		goto err_misc_deregister;
+	}
 
 	pr_info("allocating %lu bytes at %p (%lx physical) for %s\n",
 		pmem[id].size, pmem[id].vbase, pmem[id].base, pmem[id].name);
 
-	pmem[id].map_on_demand = pdata->map_on_demand;
+	pmem[id].reusable = pdata->reusable;
+	/* reusable pmem requires map on demand */
+	pmem[id].map_on_demand = pdata->map_on_demand || pdata->reusable;
 	if (pmem[id].map_on_demand) {
-		pmem_vma = get_vm_area(pmem[id].size, VM_IOREMAP);
-		if (!pmem_vma) {
-			pr_err("pmem: Failed to allocate virtual space for "
+		if (pmem[id].reusable) {
+			const struct fmem_data *fmem_info = fmem_get_info();
+			pmem[id].area = fmem_info->area;
+		} else {
+			pmem_vma = get_vm_area(pmem[id].size, VM_IOREMAP);
+			if (!pmem_vma) {
+				pr_err("pmem: Failed to allocate virtual space for "
 					"%s\n", pdata->name);
-			goto out_put_kobj;
-		}
-		pr_err("pmem: Reserving virtual address range %lx - %lx for"
+				goto err_free;
+			}
+			pr_err("pmem: Reserving virtual address range %lx - %lx for"
 				" %s\n", (unsigned long) pmem_vma->addr,
 				(unsigned long) pmem_vma->addr + pmem[id].size,
 				pdata->name);
-		pmem[id].area = pmem_vma;
+			pmem[id].area = pmem_vma;
+		}
 	} else
 		pmem[id].area = NULL;
 
-	pmem[id].garbage_pfn = page_to_pfn(alloc_page(GFP_KERNEL));
+	page = alloc_page(GFP_KERNEL);
+	if (!page) {
+		pr_err("pmem: Failed to allocate page for %s\n", pdata->name);
+		goto cleanup_vm;
+	}
+	pmem[id].garbage_pfn = page_to_pfn(page);
 	atomic_set(&pmem[id].allocation_cnt, 0);
 
 	if (pdata->setup_region)
@@ -2839,6 +2876,12 @@ int pmem_setup(struct android_pmem_platform_data *pdata,
 
 	return 0;
 
+cleanup_vm:
+	remove_vm_area(pmem_vma);
+err_free:
+	free_contiguous_memory_by_paddr(pmem[id].base);
+err_misc_deregister:
+	misc_deregister(&pmem[id].dev);
 err_cant_register_device:
 out_put_kobj:
 	kobject_put(&pmem[id].kobj);
@@ -2876,6 +2919,19 @@ static int pmem_remove(struct platform_device *pdev)
 	int id = pdev->id;
 	__free_page(pfn_to_page(pmem[id].garbage_pfn));
 	pm_runtime_disable(&pdev->dev);
+	if (pmem[id].vbase)
+		iounmap(pmem[id].vbase);
+	if (pmem[id].map_on_demand && !pmem[id].reusable && pmem[id].area)
+		free_vm_area(pmem[id].area);
+	if (pmem[id].base)
+		free_contiguous_memory_by_paddr(pmem[id].base);
+	kobject_put(&pmem[id].kobj);
+	if (pmem[id].allocator_type == PMEM_ALLOCATORTYPE_BUDDYBESTFIT)
+		kfree(pmem[id].allocator.buddy_bestfit.buddy_bitmap);
+	else if (pmem[id].allocator_type == PMEM_ALLOCATORTYPE_BITMAP) {
+		kfree(pmem[id].allocator.bitmap.bitmap);
+		kfree(pmem[id].allocator.bitmap.bitm_alloc);
+	}
 	misc_deregister(&pmem[id].dev);
 	return 0;
 }

@@ -1,4 +1,4 @@
-/* Copyright (c) 2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -22,6 +22,8 @@
 #include <mach/usbdiag.h>
 #include <mach/msm_sps.h>
 #include <mach/dma.h>
+#include <sound/msm-dai-q6.h>
+#include <sound/apr_audio.h>
 #include "clock.h"
 #include "devices.h"
 #include "msm_watchdog.h"
@@ -204,6 +206,134 @@ struct platform_device apq8064_device_qup_spi_gsbi5 = {
 	.id		= 0,
 	.num_resources	= ARRAY_SIZE(resources_qup_spi_gsbi5),
 	.resource	= resources_qup_spi_gsbi5,
+};
+
+struct platform_device apq_pcm = {
+	.name	= "msm-pcm-dsp",
+	.id	= -1,
+};
+
+struct platform_device apq_pcm_routing = {
+	.name	= "msm-pcm-routing",
+	.id	= -1,
+};
+
+struct platform_device apq_cpudai0 = {
+	.name	= "msm-dai-q6",
+	.id	= 0x4000,
+};
+
+struct platform_device apq_cpudai1 = {
+	.name	= "msm-dai-q6",
+	.id	= 0x4001,
+};
+
+struct platform_device apq_cpudai_hdmi_rx = {
+	.name	= "msm-dai-q6",
+	.id	= 8,
+};
+
+struct platform_device apq_cpudai_bt_rx = {
+	.name   = "msm-dai-q6",
+	.id     = 0x3000,
+};
+
+struct platform_device apq_cpudai_bt_tx = {
+	.name   = "msm-dai-q6",
+	.id     = 0x3001,
+};
+
+struct platform_device apq_cpudai_fm_rx = {
+	.name   = "msm-dai-q6",
+	.id     = 0x3004,
+};
+
+struct platform_device apq_cpudai_fm_tx = {
+	.name   = "msm-dai-q6",
+	.id     = 0x3005,
+};
+
+/*
+ * Machine specific data for AUX PCM Interface
+ * which the driver will  be unware of.
+ */
+struct msm_dai_auxpcm_pdata apq_auxpcm_rx_pdata = {
+	.clk = "pcm_clk",
+	.mode = AFE_PCM_CFG_MODE_PCM,
+	.sync = AFE_PCM_CFG_SYNC_INT,
+	.frame = AFE_PCM_CFG_FRM_256BPF,
+	.quant = AFE_PCM_CFG_QUANT_LINEAR_NOPAD,
+	.slot = 0,
+	.data = AFE_PCM_CFG_CDATAOE_MASTER,
+	.pcm_clk_rate = 2048000,
+};
+
+struct platform_device apq_cpudai_auxpcm_rx = {
+	.name = "msm-dai-q6",
+	.id = 2,
+	.dev = {
+		.platform_data = &apq_auxpcm_rx_pdata,
+	},
+};
+
+struct platform_device apq_cpudai_auxpcm_tx = {
+	.name = "msm-dai-q6",
+	.id = 3,
+};
+
+struct platform_device apq_cpu_fe = {
+	.name	= "msm-dai-fe",
+	.id	= -1,
+};
+
+struct platform_device apq_stub_codec = {
+	.name	= "msm-stub-codec",
+	.id	= 1,
+};
+
+struct platform_device apq_voice = {
+	.name	= "msm-pcm-voice",
+	.id	= -1,
+};
+
+struct platform_device apq_voip = {
+	.name	= "msm-voip-dsp",
+	.id	= -1,
+};
+
+struct platform_device apq_lpa_pcm = {
+	.name   = "msm-pcm-lpa",
+	.id     = -1,
+};
+
+struct platform_device apq_pcm_hostless = {
+	.name	= "msm-pcm-hostless",
+	.id	= -1,
+};
+
+struct platform_device apq_cpudai_afe_01_rx = {
+	.name = "msm-dai-q6",
+	.id = 0xE0,
+};
+
+struct platform_device apq_cpudai_afe_01_tx = {
+	.name = "msm-dai-q6",
+	.id = 0xF0,
+};
+
+struct platform_device apq_cpudai_afe_02_rx = {
+	.name = "msm-dai-q6",
+	.id = 0xF1,
+};
+
+struct platform_device apq_cpudai_afe_02_tx = {
+	.name = "msm-dai-q6",
+	.id = 0xE1,
+};
+
+struct platform_device apq_pcm_afe = {
+	.name	= "msm-pcm-afe",
+	.id	= -1,
 };
 
 static struct resource resources_ssbi_pmic1[] = {
@@ -649,13 +779,13 @@ static struct clk_lookup msm_clocks_8064_dummy[] = {
 	CLK_DUMMY("core_clk",		SDC4_CLK,		NULL, OFF),
 	CLK_DUMMY("ref_clk",		TSIF_REF_CLK,		NULL, OFF),
 	CLK_DUMMY("core_clk",		TSSC_CLK,		NULL, OFF),
-	CLK_DUMMY("usb_hs_clk",		USB_HS1_XCVR_CLK,	NULL, OFF),
-	CLK_DUMMY("usb_hs_clk",         USB_HS3_XCVR_CLK,       NULL, OFF),
-	CLK_DUMMY("usb_hs_clk",         USB_HS4_XCVR_CLK,       NULL, OFF),
-	CLK_DUMMY("usb_phy_clk",	USB_PHY0_CLK,		NULL, OFF),
-	CLK_DUMMY("usb_fs_src_clk",	USB_FS1_SRC_CLK,	NULL, OFF),
-	CLK_DUMMY("usb_fs_clk",		USB_FS1_XCVR_CLK,	NULL, OFF),
-	CLK_DUMMY("usb_fs_sys_clk",	USB_FS1_SYS_CLK,	NULL, OFF),
+	CLK_DUMMY("alt_core_clk",	USB_HS1_XCVR_CLK,	NULL, OFF),
+	CLK_DUMMY("alt_core_clk",       USB_HS3_XCVR_CLK,       NULL, OFF),
+	CLK_DUMMY("alt_core_clk",       USB_HS4_XCVR_CLK,       NULL, OFF),
+	CLK_DUMMY("phy_clk",		USB_PHY0_CLK,		NULL, OFF),
+	CLK_DUMMY("src_clk",		USB_FS1_SRC_CLK,	NULL, OFF),
+	CLK_DUMMY("alt_core_clk",	USB_FS1_XCVR_CLK,	NULL, OFF),
+	CLK_DUMMY("sys_clk",		USB_FS1_SYS_CLK,	NULL, OFF),
 	CLK_DUMMY("core_clk",		CE2_CLK,		NULL, OFF),
 	CLK_DUMMY("core_clk",		CE1_CORE_CLK,		NULL, OFF),
 	CLK_DUMMY("core_clk",		CE3_CORE_CLK,           NULL, OFF),
@@ -673,10 +803,10 @@ static struct clk_lookup msm_clocks_8064_dummy[] = {
 	CLK_DUMMY("iface_clk",		GSBI6_P_CLK,		NULL, OFF),
 	CLK_DUMMY("iface_clk",		GSBI7_P_CLK,		NULL, OFF),
 	CLK_DUMMY("iface_clk",		TSIF_P_CLK,		NULL, OFF),
-	CLK_DUMMY("usb_fs_pclk",	USB_FS1_P_CLK,		NULL, OFF),
-	CLK_DUMMY("usb_hs_pclk",	USB_HS1_P_CLK,		NULL, OFF),
-	CLK_DUMMY("usb_hs_pclk",        USB_HS3_P_CLK,          NULL, OFF),
-	CLK_DUMMY("usb_hs_pclk",        USB_HS4_P_CLK,          NULL, OFF),
+	CLK_DUMMY("iface_clk",		USB_FS1_P_CLK,		NULL, OFF),
+	CLK_DUMMY("iface_clk",		USB_HS1_P_CLK,		NULL, OFF),
+	CLK_DUMMY("iface_clk",		USB_HS3_P_CLK,          NULL, OFF),
+	CLK_DUMMY("iface_clk",		USB_HS4_P_CLK,          NULL, OFF),
 	CLK_DUMMY("iface_clk",		SDC1_P_CLK,		NULL, OFF),
 	CLK_DUMMY("iface_clk",		SDC2_P_CLK,		NULL, OFF),
 	CLK_DUMMY("iface_clk",		SDC3_P_CLK,		NULL, OFF),
@@ -770,7 +900,7 @@ static struct clk_lookup msm_clocks_8064_dummy[] = {
 	CLK_DUMMY("audio_slimbus_clk",  AUDIO_SLIMBUS_CLK,      NULL, OFF),
 
 	CLK_DUMMY("dfab_dsps_clk",	DFAB_DSPS_CLK,		NULL, 0),
-	CLK_DUMMY("dfab_usb_hs_clk",	DFAB_USB_HS_CLK,	NULL, 0),
+	CLK_DUMMY("core_clk",		DFAB_USB_HS_CLK,	NULL, 0),
 	CLK_DUMMY("bus_clk",		DFAB_SDC1_CLK,		NULL, 0),
 	CLK_DUMMY("bus_clk",		DFAB_SDC2_CLK,		NULL, 0),
 	CLK_DUMMY("bus_clk",		DFAB_SDC3_CLK,		NULL, 0),

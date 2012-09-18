@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2008-2012, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -9,7 +9,6 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
-
 #include <linux/slab.h>
 #include <linux/init.h>
 #include <linux/module.h>
@@ -36,23 +35,27 @@
 #ifdef CONFIG_DIAG_SDIO_PIPE
 #include "diagfwd_sdio.h"
 #endif
+/* < DTS2010112904779 liuhongfei 20101129 begin */						
 #ifdef CONFIG_HUAWEI_FEATURE_PHUDIAG
 #include "phudiagchar.h"
 #include "phudiagfwd.h"
 #endif
+/* DTS2010112904779 liuhongfei 20101129 end > */ 
 
 #define MODE_CMD	41
 #define RESET_ID	2
 
+/* < DTS2010112904779 liuhongfei 20101129 begin */						
 #ifdef CONFIG_HUAWEI_FEATURE_PHUDIAG
 int phudiagfwd_usb_diag_suspend_packet_num = 0;
 #endif
+/* DTS2010112904779 liuhongfei 20101129 end > */ 
 
 int diag_debug_buf_idx;
 unsigned char diag_debug_buf[1024];
 static unsigned int buf_tbl_size = 8; /*Number of entries in table of buffers */
 struct diag_master_table entry;
-smd_channel_t *ch_temp;
+smd_channel_t *ch_temp, *chqdsp_temp, *ch_wcnss_temp;
 struct diag_send_desc_type send = { NULL, NULL, DIAG_STATE_START, 0 };
 struct diag_hdlc_dest_type enc = { NULL, NULL, 0 };
 
@@ -81,14 +84,23 @@ do {									\
 
 int chk_config_get_id(void)
 {
+	/* For all Fusion targets, Modem will always be present */
+	if (machine_is_msm8x60_fusion() || machine_is_msm8x60_fusn_ffa())
+		return 0;
+
 	switch (socinfo_get_id()) {
 	case APQ8060_MACHINE_ID:
 	case MSM8660_MACHINE_ID:
 		return APQ8060_TOOLS_ID;
 	case AO8960_MACHINE_ID:
+	case MSM8260A_MACHINE_ID:
 		return AO8960_TOOLS_ID;
 	case APQ8064_MACHINE_ID:
 		return APQ8064_TOOLS_ID;
+	case MSM8930_MACHINE_ID:
+		return MSM8930_TOOLS_ID;
+	case MSM8974_MACHINE_ID:
+		return MSM8974_TOOLS_ID;
 	default:
 		return 0;
 	}
@@ -103,10 +115,32 @@ int chk_apps_only(void)
 	switch (socinfo_get_id()) {
 	case AO8960_MACHINE_ID:
 	case APQ8064_MACHINE_ID:
+	case MSM8930_MACHINE_ID:
+	case MSM8630_MACHINE_ID:
+	case MSM8230_MACHINE_ID:
+	case APQ8030_MACHINE_ID:
+	case MSM8627_MACHINE_ID:
+	case MSM8227_MACHINE_ID:
+	case MSM8974_MACHINE_ID:
+	case MDM9615_MACHINE_ID:
+	case MSM8260A_MACHINE_ID:
 		return 1;
 	default:
 		return 0;
 	}
+}
+
+/*
+ * This will return TRUE for targets which support apps as master.
+ * Thus, SW DLOAD and Mode Reset are supported on apps processor.
+ * This applies to 8960 and newer targets.
+ */
+int chk_apps_master(void)
+{
+	if (cpu_is_msm8960() || cpu_is_msm8930() || cpu_is_msm9615())
+		return 1;
+	else
+		return 0;
 }
 
 void __diag_smd_send_req(void)
@@ -143,6 +177,7 @@ void __diag_smd_send_req(void)
 			if (!buf)
 				pr_info("Out of diagmem for Modem\n");
 			else {
+				/* < DTS2011011300706 liuhongfei 20110113 begin */						
 				#ifdef CONFIG_HUAWEI_FEATURE_PHUDIAG
 				mutex_lock(&phudriver->diagchar_mutex);
 				if(phudriver->opened)
@@ -155,9 +190,11 @@ void __diag_smd_send_req(void)
 					}
 				}
 				#endif
+				/* DTS2011011300706 liuhongfei 20110113 end > */ 
 				APPEND_DEBUG('i');
 				smd_read(driver->ch, buf, r);
 				APPEND_DEBUG('j');
+				/* < DTS2011011300706 liuhongfei 20110113 begin */						
 				#ifdef CONFIG_HUAWEI_FEATURE_PHUDIAG
 				if(phudriver->opened)
 				{
@@ -166,6 +203,7 @@ void __diag_smd_send_req(void)
 				}
 				mutex_unlock(&phudriver->diagchar_mutex);
 				#endif
+				/* DTS2011011300706 liuhongfei 20110113 end > */ 
 				write_ptr_modem->length = r;
 				*in_busy_ptr = 1;
 				diag_device_write(buf, MODEM_DATA,
@@ -174,6 +212,7 @@ void __diag_smd_send_req(void)
 		}
 	}
 
+	/* < DTS2011011300706 liuhongfei 20110113 begin */						
 	#ifdef CONFIG_HUAWEI_FEATURE_PHUDIAG
 	phudiagfwd_usb_diag_suspend_packet_num++;
 	mutex_lock(&phudriver->diagchar_mutex);
@@ -185,6 +224,7 @@ void __diag_smd_send_req(void)
 	}
 	mutex_unlock(&phudriver->diagchar_mutex);
 	#endif
+	/* DTS2011011300706 liuhongfei 20110113 end > */ 
 		
 }
 
@@ -233,6 +273,13 @@ int diag_device_write(void *buf, int proc_num, struct diag_request *write_ptr)
 			queue_work(driver->diag_wq, &(driver->
 				diag_read_smd_wcnss_work));
 		}
+#ifdef CONFIG_DIAG_SDIO_PIPE
+		else if (proc_num == SDIO_DATA) {
+			driver->in_busy_sdio = 0;
+			queue_work(driver->diag_sdio_wq,
+				&(driver->diag_read_sdio_work));
+		}
+#endif
 		err = -1;
 	}
 #ifdef CONFIG_DIAG_OVER_USB
@@ -268,11 +315,22 @@ int diag_device_write(void *buf, int proc_num, struct diag_request *write_ptr)
 #ifdef CONFIG_DIAG_SDIO_PIPE
 		else if (proc_num == SDIO_DATA) {
 			if (machine_is_msm8x60_fusion() ||
-					machine_is_msm8x60_fusn_ffa()) {
+					 machine_is_msm8x60_fusn_ffa()) {
 				write_ptr->buf = buf;
 				err = usb_diag_write(driver->mdm_ch, write_ptr);
 			} else
-				pr_err("diag: Incorrect data while USB write");
+				pr_err("diag: Incorrect sdio data "
+						"while USB write\n");
+		}
+#endif
+#ifdef CONFIG_DIAG_HSIC_PIPE
+		else if (proc_num == HSIC_DATA) {
+			if (driver->hsic_device_enabled) {
+				write_ptr->buf = buf;
+				err = usb_diag_write(driver->mdm_ch, write_ptr);
+			} else
+				pr_err("diag: Incorrect hsic data "
+						"while USB write\n");
 		}
 #endif
 		APPEND_DEBUG('d');
@@ -545,8 +603,7 @@ void diag_send_data(struct diag_master_table entry, unsigned char *buf,
 	} else {
 		if (len > 0) {
 			if (entry.client_id == MODEM_PROC && driver->ch) {
-				if ((cpu_is_msm8960() || cpu_is_msm8930() ||
-					cpu_is_msm9615()) &&
+				if (chk_apps_master() &&
 					 (int)(*(char *)buf) == MODE_CMD)
 					if ((int)(*(char *)(buf+1)) ==
 						RESET_ID)
@@ -586,8 +643,7 @@ static int diag_process_apps_pkt(unsigned char *buf, int len)
 	temp += 2;
 	data_type = APPS_DATA;
 	/* Dont send any command other than mode reset */
-	if ((cpu_is_msm8960() || cpu_is_msm8930() || cpu_is_msm9615()) &&
-		cmd_code == MODE_CMD) {
+	if (chk_apps_master() && cmd_code == MODE_CMD) {
 		if (subsys_id != RESET_ID)
 			data_type = MODEM_DATA;
 	}
@@ -625,6 +681,23 @@ static int diag_process_apps_pkt(unsigned char *buf, int len)
 					packet_type = 0;
 				}
 			}
+/* < DTS2012030206361 weiheng 20120329 begin */
+/* support automation diag command */
+#ifdef CONFIG_HUAWEI_KERNEL
+			/* automation cmd_code is 0xF6 */
+			/* judge if it is automation cmd_code */
+			else if ((entry.cmd_code == 255) 
+					&& (entry.subsys_id == 0xF6) 
+					&& (cmd_code == 0xF6))
+			{
+				if ((entry.cmd_code_lo <= subsys_id) && (entry.cmd_code_hi >= subsys_id))
+				{
+					diag_send_data(entry, buf, len,data_type);
+					packet_type = 0;
+				}
+			}
+#endif
+/* DTS2012030206361 weiheng 20120329 end > */
 		}
 	}
 	/* set event mask */
@@ -871,8 +944,7 @@ static int diag_process_apps_pkt(unsigned char *buf, int len)
 		return 0;
 	}
 	/* Check for download command */
-	else if ((cpu_is_msm8x60() || cpu_is_msm8960() || cpu_is_msm8930()
-		|| cpu_is_msm9615()) && (*buf == 0x3A)) {
+	else if ((cpu_is_msm8x60() || chk_apps_master()) && (*buf == 0x3A)) {
 		/* send response back */
 		driver->apps_rsp_buf[0] = *buf;
 		ENCODE_RSP_AND_SEND(0);
@@ -927,6 +999,11 @@ static int diag_process_apps_pkt(unsigned char *buf, int len)
 void diag_send_error_rsp(int index)
 {
 	int i;
+
+	if (index > 490) {
+		pr_err("diag: error response too huge, aborting\n");
+		return;
+	}
 	driver->apps_rsp_buf[0] = 0x13; /* error code 13 */
 	for (i = 0; i < index; i++)
 		driver->apps_rsp_buf[i+1] = *(driver->hdlc_buf+i);
@@ -1025,9 +1102,9 @@ int diagfwd_connect(void)
 	queue_work(driver->diag_wq, &(driver->diag_read_smd_qdsp_work));
 	queue_work(driver->diag_wq, &(driver->diag_read_smd_wcnss_work));
 	/* Poll SMD CNTL channels to check for data */
-	queue_work(driver->diag_wq, &(driver->diag_read_smd_cntl_work));
-	queue_work(driver->diag_wq, &(driver->diag_read_smd_qdsp_cntl_work));
-	queue_work(driver->diag_wq, &(driver->diag_read_smd_wcnss_cntl_work));
+	diag_smd_cntl_notify(NULL, SMD_EVENT_DATA);
+	diag_smd_qdsp_cntl_notify(NULL, SMD_EVENT_DATA);
+	diag_smd_wcnss_cntl_notify(NULL, SMD_EVENT_DATA);
 	/* Poll USB channel to check for data*/
 	queue_work(driver->diag_wq, &(driver->diag_read_work));
 #ifdef CONFIG_DIAG_SDIO_PIPE
@@ -1093,7 +1170,7 @@ int diagfwd_write_complete(struct diag_request *diag_write_ptr)
 #ifdef CONFIG_DIAG_SDIO_PIPE
 	else if (buf == (void *)driver->buf_in_sdio)
 		if (machine_is_msm8x60_fusion() ||
-					 machine_is_msm8x60_fusn_ffa())
+			 machine_is_msm8x60_fusn_ffa())
 			diagfwd_write_complete_sdio();
 		else
 			pr_err("diag: Incorrect buffer pointer while WRITE");
@@ -1135,7 +1212,7 @@ int diagfwd_read_complete(struct diag_request *diag_read_ptr)
 #ifdef CONFIG_DIAG_SDIO_PIPE
 	else if (buf == (void *)driver->usb_buf_mdm_out) {
 		if (machine_is_msm8x60_fusion() ||
-					 machine_is_msm8x60_fusn_ffa()) {
+				 machine_is_msm8x60_fusn_ffa()) {
 			driver->read_len_mdm = diag_read_ptr->actual;
 			diagfwd_read_complete_sdio();
 		} else
@@ -1205,12 +1282,28 @@ static void diag_smd_notify(void *ctxt, unsigned event)
 #if defined(CONFIG_MSM_N_WAY_SMD)
 static void diag_smd_qdsp_notify(void *ctxt, unsigned event)
 {
+	if (event == SMD_EVENT_CLOSE) {
+		pr_info("diag: clean lpass registration\n");
+		diag_clear_reg(QDSP_PROC);
+		driver->chqdsp = 0;
+		return;
+	} else if (event == SMD_EVENT_OPEN) {
+		driver->chqdsp = chqdsp_temp;
+	}
 	queue_work(driver->diag_wq, &(driver->diag_read_smd_qdsp_work));
 }
 #endif
 
 static void diag_smd_wcnss_notify(void *ctxt, unsigned event)
 {
+	if (event == SMD_EVENT_CLOSE) {
+		pr_info("diag: clean wcnss registration\n");
+		diag_clear_reg(WCNSS_PROC);
+		driver->ch_wcnss = 0;
+		return;
+	} else if (event == SMD_EVENT_OPEN) {
+		driver->ch_wcnss = ch_wcnss_temp;
+	}
 	queue_work(driver->diag_wq, &(driver->diag_read_smd_wcnss_work));
 }
 
@@ -1223,20 +1316,26 @@ static int diag_smd_probe(struct platform_device *pdev)
 		ch_temp = driver->ch;
 	}
 #if defined(CONFIG_MSM_N_WAY_SMD)
-	if (pdev->id == SMD_APPS_QDSP)
+	if (pdev->id == SMD_APPS_QDSP) {
 		r = smd_named_open_on_edge("DIAG", SMD_APPS_QDSP
 			, &driver->chqdsp, driver, diag_smd_qdsp_notify);
+		chqdsp_temp = driver->chqdsp;
+	}
 #endif
-	if (pdev->id == SMD_APPS_WCNSS)
+	if (pdev->id == SMD_APPS_WCNSS) {
 		r = smd_named_open_on_edge("APPS_RIVA_DATA", SMD_APPS_WCNSS
 			, &driver->ch_wcnss, driver, diag_smd_wcnss_notify);
+		ch_wcnss_temp = driver->ch_wcnss;
+	}
 	pm_runtime_set_active(&pdev->dev);
 	pm_runtime_enable(&pdev->dev);
 	pr_debug("diag: open SMD port, Id = %d, r = %d\n", pdev->id, r);
 
+	/* < DTS2010112904779 liuhongfei 20101129 begin */						
 	#ifdef CONFIG_HUAWEI_FEATURE_PHUDIAG
 	phudriver->ch = driver->ch;
 	#endif
+	/* DTS2010112904779 liuhongfei 20101129 end > */ 
 	return 0;
 }
 
@@ -1404,10 +1503,12 @@ void diagfwd_init(void)
 		goto err;
 	}
 #endif
+	/* < DTS2011011300706 liuhongfei 20110113 begin */						
 	#ifdef CONFIG_HUAWEI_FEATURE_PHUDIAG
 	phudriver->diag_wq = driver->diag_wq;
 	phudriver->diag_read_smd_work = &(driver->diag_read_smd_work);
 	#endif
+	/* DTS2011011300706 liuhongfei 20110113 end > */ 
 	platform_driver_register(&msm_smd_ch1_driver);
 	platform_driver_register(&diag_smd_lite_driver);
 

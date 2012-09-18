@@ -21,26 +21,6 @@
 #include <linux/uaccess.h>
 #include <linux/string.h>
 
-#ifdef CONFIG_HUAWEI_KERNEL
-#include <mach/oem_rapi_client.h>
-#include <linux/time.h>
-#include <linux/kernel.h>
-#include <linux/slab.h>
-#include <linux/workqueue.h>
-
-static void suspend_adie_write_I2C_handler(unsigned long);
-
-#define SUSPEND_ADIE_WRITE_I2C_TIMEOUT (HZ/5)
-/* match modem side need rework */
-#define HUAWEI_OEM_RAPI_PA_POWER_SETTING 207
-static DEFINE_TIMER(suspend_adie_write_I2c_timer, suspend_adie_write_I2C_handler, 0, 0);
-static int timpani_codec_rpc_init(void);
-
-struct msm_rpc_client *rpc_client = NULL;
-struct workqueue_struct *adie_rpc_work_queue = NULL;
-static bool allow_adie_to_set_rpc_timer = true;
-
-#endif
 /* Timpani codec driver is activated through Marimba core driver */
 
 #define MAX_MDELAY_US 20000
@@ -61,6 +41,15 @@ static bool allow_adie_to_set_rpc_timer = true;
 		TIMPANI_CDC_ST_MIXING_TX2_R_M)
 #define TIMPANI_CDC_ST_MIXING_TX2_ENABLE ((1 << TIMPANI_CDC_ST_MIXING_TX2_L_S)\
 		| (1 << TIMPANI_CDC_ST_MIXING_TX2_R_S))
+/* < DTS2012022402932 gaolin 20120224 begin */
+/*< DTS2011122606588 yinzhaoyang 20111230 begin */
+#ifdef CONFIG_HUAWEI_KERNEL
+#define TIMPANI_CDC_ST_MIXING_TX1_MIC1_MASK (TIMPANI_CDC_ST_MIXING_TX1_L_M |\
+		TIMPANI_CDC_ST_MIXING_TX1_R_M)
+#define TIMPANI_CDC_ST_MIXING_TX1_MIC1_ENABLE ((1 << TIMPANI_CDC_ST_MIXING_TX1_L_S))
+#endif
+/* DTS2011122606588 yinzhaoyang 20111230 end > */
+/* DTS2012022402932 gaolin 20120224 end > */
 
 enum refcnt {
 	DEC = 0,
@@ -2741,6 +2730,9 @@ static struct adie_codec_state adie_codec;
  * are not skipped.
  */
 
+/*< DTS2012021102090 gaolin 20120211 begin */
+/*< DTS2011122607023 yinzhaoyang 20111231 begin */
+#ifndef CONFIG_HUAWEI_KERNEL
 static bool timpani_register_is_cacheable(u8 reg)
 {
 	switch (reg) {
@@ -2782,147 +2774,6 @@ static bool timpani_register_is_cacheable(u8 reg)
 	}
 }
 
-#ifdef CONFIG_HUAWEI_KERNEL
-static void adie_rpc_work(struct work_struct *work)
-{
-	struct oem_rapi_client_streaming_func_arg arg;
-	struct oem_rapi_client_streaming_func_ret ret;
-	/* restore cmd should be 0 */
-	unsigned char pa_power_level = 0;
-	static int oem_rapi_client_res;
-	
-	arg.event = HUAWEI_OEM_RAPI_PA_POWER_SETTING;
-	arg.cb_func = NULL;
-	arg.handle = (void *)0;
-	arg.in_len = sizeof(unsigned char);
-	arg.input = (unsigned char *)&pa_power_level;
-	arg.out_len_valid = 1;
-	arg.output_valid = 1;
-	arg.output_size = sizeof(unsigned char);
-	ret.out_len = NULL;
-	ret.output = NULL;
-     // send rpc to restore power command
-	if(rpc_client != NULL)
-	{
-	  oem_rapi_client_res = oem_rapi_client_streaming_function(rpc_client, &arg, &ret);
-	  pr_debug("adie_rpc_work called\n");
-	  if(oem_rapi_client_res)
-	  {
-	    printk("%s: oem_rapi_client_res=%d\n", __FUNCTION__, oem_rapi_client_res);
-	  }
-	}
-	if(ret.out_len)
-	{
-		kfree(ret.out_len);
-		ret.out_len = NULL;
-	}
-	if(ret.output)
-	{
-		kfree(ret.output);
-		ret.output = NULL;
-	}
-    allow_adie_to_set_rpc_timer = true;
-}
-
-static DECLARE_WORK(adie_work, adie_rpc_work);
-
-static void suspend_adie_write_I2C_handler(unsigned long arg)
-{
-	pr_debug(KERN_ERR"%s timer call back\n", __func__);
-	queue_work(adie_rpc_work_queue, &adie_work);
-}
-
-
-static int adie_codec_write(u8 reg, u8 mask, u8 val)
-{
-	int rc;
-
-#ifdef CONFIG_HUAWEI_KERNEL
-	struct oem_rapi_client_streaming_func_arg arg;
-	struct oem_rapi_client_streaming_func_ret ret;
-	/* command to reduce power level */
-	unsigned char pa_power_level = 1;
-	static int oem_rapi_client_res;
-	
-	arg.event = HUAWEI_OEM_RAPI_PA_POWER_SETTING;
-	arg.cb_func = NULL;
-	arg.handle = (void *)0;
-	arg.in_len = sizeof(unsigned char);
-	arg.input = (char *)&pa_power_level;
-	arg.out_len_valid = 1;
-	arg.output_valid = 1;
-	arg.output_size = sizeof(unsigned char);
-	ret.out_len = NULL;
-	ret.output = NULL;
-
-	if (true == allow_adie_to_set_rpc_timer)
-    {
-       // rpc 1 
-	   if(rpc_client != NULL)
-	   {
-		 oem_rapi_client_res = oem_rapi_client_streaming_function(rpc_client, &arg, &ret);
-		 if(oem_rapi_client_res)
-         {
-           printk("%s: oem_rapi_client_res=%d\n", __FUNCTION__, oem_rapi_client_res);
-         }
-         // 2 GSM start timer
-         pr_debug("%s: rpc ret.output =%d\n", __FUNCTION__, *ret.output);
-	     if ((unsigned char)(*ret.output) == 1) /* 1 means rpc reduce power ok */
-	     {
-			// 2.1 delay
-			pr_debug("%s: 1 start timer\n", __FUNCTION__ );
-			mdelay(250);
-			mod_timer(&suspend_adie_write_I2c_timer, jiffies +
-					SUSPEND_ADIE_WRITE_I2C_TIMEOUT);
-			allow_adie_to_set_rpc_timer = false;
-			pr_debug("%s: start adie_codec write\n", __FUNCTION__ );
-
-	     }
-	     else if ((unsigned char)(*ret.output) == 2) /* 2 means band change */
-	     {
-	       // 2.1 delay
-	       pr_debug("%s: 2 start timer\n", __FUNCTION__ );
-	       mdelay(50);
-	       mod_timer(&suspend_adie_write_I2c_timer, jiffies +
-				SUSPEND_ADIE_WRITE_I2C_TIMEOUT);
-		   allow_adie_to_set_rpc_timer = false;
-	     }
-        
-		if(ret.out_len)
-		{
-			kfree(ret.out_len);
-			ret.out_len = NULL;
-		}
-		if(ret.output)
-		{
-			kfree(ret.output);
-			ret.output = NULL;
-		}
-	   }
-       else
-	   {
-	     printk(KERN_ERR"rpc_client is null\n");
-	   }
-	}
-	else
-	{
-         mod_timer(&suspend_adie_write_I2c_timer, jiffies +
-				SUSPEND_ADIE_WRITE_I2C_TIMEOUT);
-
-	}
-#endif
-	
-	rc = marimba_write_bit_mask(adie_codec.pdrv_ptr, reg,  &val, 1, mask);
-	if (IS_ERR_VALUE(rc)) {
-		pr_err("%s: fail to write reg %x\n", __func__, reg);
-		return -EIO;
-	}
-
-	pr_debug("%s: write reg %x val %x\n", __func__, reg, val);
-
-	return 0;
-}
-#else
 static int adie_codec_write(u8 reg, u8 mask, u8 val)
 {
 	int rc = 0;
@@ -2960,8 +2811,25 @@ static int adie_codec_write(u8 reg, u8 mask, u8 val)
 error:
 	return rc;
 }
-#endif
 
+#else
+static int adie_codec_write(u8 reg, u8 mask, u8 val)
+{
+	int rc;
+
+	rc = marimba_write_bit_mask(adie_codec.pdrv_ptr, reg,  &val, 1, mask);
+	if (IS_ERR_VALUE(rc)) {
+		pr_err("%s: fail to write reg %x\n", __func__, reg);
+		return -EIO;
+	}
+
+	pr_debug("%s: write reg %x val %x\n", __func__, reg, val);
+
+	return 0;
+}
+#endif
+/* DTS2011122607023 yinzhaoyang 20111231 end >*/
+/* DTS2012021102090 gaolin 20120211 end >*/
 
 static int reg_in_use(u8 reg_ref, u8 path_type)
 {
@@ -3096,11 +2964,21 @@ int timpani_adie_codec_enable_sidetone(struct adie_codec_path *rx_path_ptr,
 	if (enable) {
 		rc = adie_codec_write(TIMPANI_A_CDC_RX1_CTL,
 			TIMPANI_RX1_ST_MASK, TIMPANI_RX1_ST_ENABLE);
-
+/* < DTS2012022402932 gaolin 20120224 begin */
+/*< DTS2011122606588 yinzhaoyang 20111230 begin */
+#ifdef CONFIG_HUAWEI_KERNEL
+		if (rx_path_ptr->reg_owner == RA_OWNER_PATH_RX1)
+			adie_codec_write(TIMPANI_A_CDC_ST_MIXING,
+				TIMPANI_CDC_ST_MIXING_TX1_MIC1_MASK,
+				TIMPANI_CDC_ST_MIXING_TX1_MIC1_ENABLE);
+#else
 		if (rx_path_ptr->reg_owner == RA_OWNER_PATH_RX1)
 			adie_codec_write(TIMPANI_A_CDC_ST_MIXING,
 				TIMPANI_CDC_ST_MIXING_TX1_MASK,
 				TIMPANI_CDC_ST_MIXING_TX1_ENABLE);
+#endif
+/* DTS2011122606588 yinzhaoyang 20111230 end > */
+/* DTS2012022402932 gaolin 20120224 end > */
 		else if (rx_path_ptr->reg_owner == RA_OWNER_PATH_RX2)
 			adie_codec_write(TIMPANI_A_CDC_ST_MIXING,
 				TIMPANI_CDC_ST_MIXING_TX2_MASK,
@@ -3786,28 +3664,6 @@ static struct platform_driver timpani_codec_driver = {
 	},
 };
 
-#ifdef CONFIG_HUAWEI_KERNEL
-static int timpani_codec_rpc_init(void)
-{
-	rpc_client = oem_rapi_client_init();
-	
-	if (IS_ERR(rpc_client)) {
-		pr_err("%s: couldn't open oem rapi client\n", __func__);
-		return PTR_ERR(rpc_client);
-	} else
-	{
-	    pr_info("%s: connected to remote oem rapi server\n", __func__);
-	}
-
-	adie_rpc_work_queue = create_singlethread_workqueue("adie_rpc_work");
-	if (adie_rpc_work_queue == NULL) {
-		return  -ENOMEM;;
-	}
-
-	return 0;
-}
-#endif
-
 static int __init timpani_codec_init(void)
 {
 	s32 rc;
@@ -3820,9 +3676,6 @@ static int __init timpani_codec_init(void)
 	adie_codec.path[ADIE_CODEC_RX].reg_owner = RA_OWNER_PATH_RX1;
 	adie_codec.path[ADIE_CODEC_LB].reg_owner = RA_OWNER_PATH_LB;
 	mutex_init(&adie_codec.lock);
-#ifdef CONFIG_HUAWEI_KERNEL
-	rc = timpani_codec_rpc_init();
-#endif
 error:
 	return rc;
 }

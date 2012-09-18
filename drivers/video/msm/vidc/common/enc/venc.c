@@ -1554,7 +1554,6 @@ static long vid_enc_ioctl(struct file *file,
 		if (copy_from_user(&metabuffer_mode, venc_msg.in,
 			sizeof(metabuffer_mode)))
 			return -EFAULT;
-		printk("\n mode is %d",metabuffer_mode);
 		vcd_property_hdr.prop_id = VCD_I_META_BUFFER_MODE;
 		vcd_property_hdr.sz =
 			sizeof(struct vcd_property_live);
@@ -1562,7 +1561,6 @@ static long vid_enc_ioctl(struct file *file,
 		vcd_status = vcd_set_property(client_ctx->vcd_handle,
 					&vcd_property_hdr, &live_mode);
 		if (vcd_status) {
-			printk("--------vcd_status=%d, mode=%d",vcd_status,metabuffer_mode);
 			pr_err(" Setting metabuffer mode failed");
 			return -EIO;
 		}

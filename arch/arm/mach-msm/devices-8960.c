@@ -1,4 +1,4 @@
-/* Copyright (c) 2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -170,6 +170,12 @@ static struct resource resources_hsic_host[] = {
 	{
 		.start	= USB_HSIC_IRQ,
 		.end	= USB_HSIC_IRQ,
+		.flags	= IORESOURCE_IRQ,
+	},
+	{
+		.start	= MSM_GPIO_TO_INT(69),
+		.end	= MSM_GPIO_TO_INT(69),
+		.name	= "peripheral_status_irq",
 		.flags	= IORESOURCE_IRQ,
 	},
 };
@@ -558,13 +564,14 @@ struct msm_vidc_platform_data vidc_platform_data = {
 	.vidc_bus_client_pdata = &vidc_bus_client_data,
 #endif
 #ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
-	.memtype = ION_HEAP_EBI_ID,
+	.memtype = ION_CP_MM_HEAP_ID,
 	.enable_ion = 1,
 #else
 	.memtype = MEMTYPE_EBI1,
 	.enable_ion = 0,
 #endif
 	.disable_dmx = 0,
+	.disable_fullhd = 0,
 };
 
 struct platform_device msm_device_vidc = {
@@ -873,7 +880,7 @@ static struct pil_q6v4_pdata msm_8960_q6_mss_fw_data = {
 	.strap_ahb_lower = 0x00000080,
 	.aclk_reg = SFAB_MSS_Q6_FW_ACLK_CTL,
 	.jtag_clk_reg = MSS_Q6FW_JTAG_CLK_CTL,
-	.xo_id = MSM_XO_TCXO_D0,
+	.xo_id = MSM_XO_CXO,
 	.name = "modem_fw",
 	.depends = "q6",
 	.pas_id = PAS_MODEM_FW,
@@ -911,7 +918,7 @@ static struct pil_q6v4_pdata msm_8960_q6_mss_sw_data = {
 	.strap_ahb_lower = 0x00000080,
 	.aclk_reg = SFAB_MSS_Q6_SW_ACLK_CTL,
 	.jtag_clk_reg = MSS_Q6SW_JTAG_CLK_CTL,
-	.xo_id = MSM_XO_TCXO_D0,
+	.xo_id = MSM_XO_CXO,
 	.name = "modem",
 	.depends = "modem_fw",
 	.pas_id = PAS_MODEM_SW,
@@ -924,6 +931,26 @@ struct platform_device msm_8960_q6_mss_sw = {
 	.num_resources  = ARRAY_SIZE(msm_8960_q6_mss_sw_resources),
 	.resource       = msm_8960_q6_mss_sw_resources,
 	.dev.platform_data = &msm_8960_q6_mss_sw_data,
+};
+
+static struct resource msm_8960_riva_resources[] = {
+	{
+		.start  = 0x03204000,
+		.end    = 0x03204000 + SZ_256 - 1,
+		.flags  = IORESOURCE_MEM,
+	},
+};
+
+struct platform_device msm_8960_riva = {
+	.name = "pil_riva",
+	.id = -1,
+	.num_resources  = ARRAY_SIZE(msm_8960_riva_resources),
+	.resource       = msm_8960_riva_resources,
+};
+
+struct platform_device msm_pil_tzapps = {
+	.name = "pil_tzapps",
+	.id = -1,
 };
 
 struct platform_device msm_device_smd = {
@@ -1365,6 +1392,11 @@ struct platform_device msm_pcm = {
 	.id	= -1,
 };
 
+struct platform_device msm_multi_ch_pcm = {
+	.name	= "msm-multi-ch-pcm-dsp",
+	.id	= -1,
+};
+
 struct platform_device msm_pcm_routing = {
 	.name	= "msm-pcm-routing",
 	.id	= -1,
@@ -1381,7 +1413,7 @@ struct platform_device msm_cpudai1 = {
 };
 
 struct platform_device msm_cpudai_hdmi_rx = {
-	.name	= "msm-dai-q6",
+	.name	= "msm-dai-q6-hdmi",
 	.id	= 8,
 };
 
@@ -1403,6 +1435,21 @@ struct platform_device msm_cpudai_fm_rx = {
 struct platform_device msm_cpudai_fm_tx = {
 	.name   = "msm-dai-q6",
 	.id     = 0x3005,
+};
+
+struct platform_device msm_cpudai_incall_music_rx = {
+	.name   = "msm-dai-q6",
+	.id     = 0x8005,
+};
+
+struct platform_device msm_cpudai_incall_record_rx = {
+	.name   = "msm-dai-q6",
+	.id     = 0x8004,
+};
+
+struct platform_device msm_cpudai_incall_record_tx = {
+	.name   = "msm-dai-q6",
+	.id     = 0x8003,
 };
 
 /*
@@ -1494,7 +1541,6 @@ struct platform_device msm_pcm_afe = {
 };
 
 struct platform_device *msm_footswitch_devices[] = {
-	FS_8X60(FS_MDP,    "fs_mdp"),
 	FS_8X60(FS_ROT,    "fs_rot"),
 	FS_8X60(FS_IJPEG,  "fs_ijpeg"),
 	FS_8X60(FS_VFE,    "fs_vfe"),
@@ -1539,6 +1585,9 @@ static struct msm_rotator_platform_data rotator_pdata = {
 	.hardware_version_number = 0x01020309,
 	.rotator_clks = rotator_clocks,
 	.regulator_name = "fs_rot",
+#ifdef CONFIG_MSM_BUS_SCALING
+	.bus_scale_table = &rotator_bus_scale_pdata,
+#endif
 };
 
 struct platform_device msm_rotator_device = {
@@ -1821,14 +1870,14 @@ static struct clk_lookup msm_clocks_8960_dummy[] = {
 	CLK_DUMMY("core_clk",		SDC5_CLK,		NULL, OFF),
 	CLK_DUMMY("core_clk",		TSIF_REF_CLK,		NULL, OFF),
 	CLK_DUMMY("core_clk",		TSSC_CLK,		NULL, OFF),
-	CLK_DUMMY("usb_hs_clk",		USB_HS1_XCVR_CLK,	NULL, OFF),
-	CLK_DUMMY("usb_phy_clk",	USB_PHY0_CLK,		NULL, OFF),
-	CLK_DUMMY("usb_fs_src_clk",	USB_FS1_SRC_CLK,	NULL, OFF),
-	CLK_DUMMY("usb_fs_clk",		USB_FS1_XCVR_CLK,	NULL, OFF),
-	CLK_DUMMY("usb_fs_sys_clk",	USB_FS1_SYS_CLK,	NULL, OFF),
-	CLK_DUMMY("usb_fs_src_clk",	USB_FS2_SRC_CLK,	NULL, OFF),
-	CLK_DUMMY("usb_fs_clk",		USB_FS2_XCVR_CLK,	NULL, OFF),
-	CLK_DUMMY("usb_fs_sys_clk",	USB_FS2_SYS_CLK,	NULL, OFF),
+	CLK_DUMMY("alt_core_clk",	USB_HS1_XCVR_CLK,	NULL, OFF),
+	CLK_DUMMY("phy_clk",		USB_PHY0_CLK,		NULL, OFF),
+	CLK_DUMMY("src_clk",		USB_FS1_SRC_CLK,	NULL, OFF),
+	CLK_DUMMY("alt_core_clk",	USB_FS1_XCVR_CLK,	NULL, OFF),
+	CLK_DUMMY("sys_clk",		USB_FS1_SYS_CLK,	NULL, OFF),
+	CLK_DUMMY("src_clk",		USB_FS2_SRC_CLK,	NULL, OFF),
+	CLK_DUMMY("alt_core_clk",	USB_FS2_XCVR_CLK,	NULL, OFF),
+	CLK_DUMMY("sys_clk",		USB_FS2_SYS_CLK,	NULL, OFF),
 	CLK_DUMMY("iface_clk",		CE2_CLK,	     "qce.0", OFF),
 	CLK_DUMMY("core_clk",		CE1_CORE_CLK,	     "qce.0", OFF),
 	CLK_DUMMY("iface_clk",		GSBI1_P_CLK, "spi_qsd.0", OFF),
@@ -1846,9 +1895,9 @@ static struct clk_lookup msm_clocks_8960_dummy[] = {
 	CLK_DUMMY("iface_clk",		GSBI12_P_CLK,		NULL, OFF),
 	CLK_DUMMY("iface_clk",		GSBI12_P_CLK,		NULL, OFF),
 	CLK_DUMMY("iface_clk",		TSIF_P_CLK,		NULL, OFF),
-	CLK_DUMMY("usb_fs_pclk",	USB_FS1_P_CLK,		NULL, OFF),
-	CLK_DUMMY("usb_fs_pclk",	USB_FS2_P_CLK,		NULL, OFF),
-	CLK_DUMMY("usb_hs_pclk",	USB_HS1_P_CLK,		NULL, OFF),
+	CLK_DUMMY("iface_clk",		USB_FS1_P_CLK,		NULL, OFF),
+	CLK_DUMMY("iface_clk",		USB_FS2_P_CLK,		NULL, OFF),
+	CLK_DUMMY("iface_clk",		USB_HS1_P_CLK,		NULL, OFF),
 	CLK_DUMMY("iface_clk",		SDC1_P_CLK,		NULL, OFF),
 	CLK_DUMMY("iface_clk",		SDC2_P_CLK,		NULL, OFF),
 	CLK_DUMMY("iface_clk",		SDC3_P_CLK,		NULL, OFF),
@@ -1944,7 +1993,7 @@ static struct clk_lookup msm_clocks_8960_dummy[] = {
 	CLK_DUMMY("core_clk",		GFX2D1_CLK,	NULL, 0),
 
 	CLK_DUMMY("dfab_dsps_clk",	DFAB_DSPS_CLK, NULL, 0),
-	CLK_DUMMY("dfab_usb_hs_clk",	DFAB_USB_HS_CLK, NULL, 0),
+	CLK_DUMMY("core_clk",		DFAB_USB_HS_CLK, "msm_otg", NULL),
 	CLK_DUMMY("bus_clk",		DFAB_SDC1_CLK, "msm_sdcc.1", 0),
 	CLK_DUMMY("bus_clk",		DFAB_SDC2_CLK, "msm_sdcc.2", 0),
 	CLK_DUMMY("bus_clk",		DFAB_SDC3_CLK, "msm_sdcc.3", 0),
@@ -2021,7 +2070,7 @@ static struct msm_bus_vectors grp3d_low_vectors[] = {
 		.src = MSM_BUS_MASTER_GRAPHICS_3D,
 		.dst = MSM_BUS_SLAVE_EBI_CH0,
 		.ab = 0,
-		.ib = KGSL_CONVERT_TO_MBPS(1200),
+		.ib = KGSL_CONVERT_TO_MBPS(1000),
 	},
 };
 
@@ -2090,12 +2139,21 @@ static struct msm_bus_vectors grp2d0_init_vectors[] = {
 	},
 };
 
+static struct msm_bus_vectors grp2d0_nominal_vectors[] = {
+	{
+		.src = MSM_BUS_MASTER_GRAPHICS_2D_CORE0,
+		.dst = MSM_BUS_SLAVE_EBI_CH0,
+		.ab = 0,
+		.ib = KGSL_CONVERT_TO_MBPS(1000),
+	},
+};
+
 static struct msm_bus_vectors grp2d0_max_vectors[] = {
 	{
 		.src = MSM_BUS_MASTER_GRAPHICS_2D_CORE0,
 		.dst = MSM_BUS_SLAVE_EBI_CH0,
 		.ab = 0,
-		.ib = KGSL_CONVERT_TO_MBPS(1200),
+		.ib = KGSL_CONVERT_TO_MBPS(2048),
 	},
 };
 
@@ -2103,6 +2161,10 @@ static struct msm_bus_paths grp2d0_bus_scale_usecases[] = {
 	{
 		ARRAY_SIZE(grp2d0_init_vectors),
 		grp2d0_init_vectors,
+	},
+	{
+		ARRAY_SIZE(grp2d0_nominal_vectors),
+		grp2d0_nominal_vectors,
 	},
 	{
 		ARRAY_SIZE(grp2d0_max_vectors),
@@ -2125,12 +2187,21 @@ static struct msm_bus_vectors grp2d1_init_vectors[] = {
 	},
 };
 
+static struct msm_bus_vectors grp2d1_nominal_vectors[] = {
+	{
+		.src = MSM_BUS_MASTER_GRAPHICS_2D_CORE1,
+		.dst = MSM_BUS_SLAVE_EBI_CH0,
+		.ab = 0,
+		.ib = KGSL_CONVERT_TO_MBPS(1000),
+	},
+};
+
 static struct msm_bus_vectors grp2d1_max_vectors[] = {
 	{
 		.src = MSM_BUS_MASTER_GRAPHICS_2D_CORE1,
 		.dst = MSM_BUS_SLAVE_EBI_CH0,
 		.ab = 0,
-		.ib = KGSL_CONVERT_TO_MBPS(1200),
+		.ib = KGSL_CONVERT_TO_MBPS(2048),
 	},
 };
 
@@ -2138,6 +2209,10 @@ static struct msm_bus_paths grp2d1_bus_scale_usecases[] = {
 	{
 		ARRAY_SIZE(grp2d1_init_vectors),
 		grp2d1_init_vectors,
+	},
+	{
+		ARRAY_SIZE(grp2d1_nominal_vectors),
+		grp2d1_nominal_vectors,
 	},
 	{
 		ARRAY_SIZE(grp2d1_max_vectors),
@@ -2197,7 +2272,7 @@ static struct kgsl_device_platform_data kgsl_3d0_pdata = {
 	.init_level = 0,
 	.num_levels = 5,
 	.set_grp_async = NULL,
-	.idle_timeout = HZ/5,
+	.idle_timeout = HZ/20,
 	.nap_allowed = true,
 	.clk_map = KGSL_CLK_CORE | KGSL_CLK_IFACE | KGSL_CLK_MEM_IFACE,
 #ifdef CONFIG_MSM_BUS_SCALING
@@ -2236,17 +2311,21 @@ static struct kgsl_device_platform_data kgsl_2d0_pdata = {
 	.pwrlevel = {
 		{
 			.gpu_freq = 200000000,
+			.bus_freq = 2,
+		},
+		{
+			.gpu_freq = 96000000,
 			.bus_freq = 1,
 		},
 		{
-			.gpu_freq = 200000000,
+			.gpu_freq = 27000000,
 			.bus_freq = 0,
 		},
 	},
 	.init_level = 0,
-	.num_levels = 2,
+	.num_levels = 3,
 	.set_grp_async = NULL,
-	.idle_timeout = HZ/10,
+	.idle_timeout = HZ/5,
 	.nap_allowed = true,
 	.clk_map = KGSL_CLK_CORE | KGSL_CLK_IFACE,
 #ifdef CONFIG_MSM_BUS_SCALING
@@ -2285,17 +2364,21 @@ static struct kgsl_device_platform_data kgsl_2d1_pdata = {
 	.pwrlevel = {
 		{
 			.gpu_freq = 200000000,
+			.bus_freq = 2,
+		},
+		{
+			.gpu_freq = 96000000,
 			.bus_freq = 1,
 		},
 		{
-			.gpu_freq = 200000000,
+			.gpu_freq = 27000000,
 			.bus_freq = 0,
 		},
 	},
 	.init_level = 0,
-	.num_levels = 2,
+	.num_levels = 3,
 	.set_grp_async = NULL,
-	.idle_timeout = HZ/10,
+	.idle_timeout = HZ/5,
 	.nap_allowed = true,
 	.clk_map = KGSL_CLK_CORE | KGSL_CLK_IFACE,
 #ifdef CONFIG_MSM_BUS_SCALING
@@ -2419,8 +2502,9 @@ struct msm_rpm_map_data rpm_map_data[] __initdata = {
 	MSM_RPM_MAP(USB_OTG_SWITCH, USB_OTG_SWITCH, 1),
 	MSM_RPM_MAP(HDMI_SWITCH, HDMI_SWITCH, 1),
 	MSM_RPM_MAP(DDR_DMM_0, DDR_DMM, 2),
-
+	MSM_RPM_MAP(QDSS_CLK, QDSS_CLK, 1),
 };
+
 unsigned int rpm_map_data_size = ARRAY_SIZE(rpm_map_data);
 
 struct platform_device msm_rpm_device = {
@@ -2518,8 +2602,7 @@ struct platform_device msm_dsps_device = {
 #define MSM_ETB_PHYS_BASE		(MSM_QDSS_PHYS_BASE + 0x1000)
 #define MSM_TPIU_PHYS_BASE		(MSM_QDSS_PHYS_BASE + 0x3000)
 #define MSM_FUNNEL_PHYS_BASE		(MSM_QDSS_PHYS_BASE + 0x4000)
-#define MSM_DEBUG_PHYS_BASE		(MSM_QDSS_PHYS_BASE + 0x10000)
-#define MSM_PTM_PHYS_BASE		(MSM_QDSS_PHYS_BASE + 0x1C000)
+#define MSM_ETM_PHYS_BASE		(MSM_QDSS_PHYS_BASE + 0x1C000)
 
 static struct resource msm_etb_resources[] = {
 	{
@@ -2531,7 +2614,7 @@ static struct resource msm_etb_resources[] = {
 
 struct platform_device msm_etb_device = {
 	.name          = "msm_etb",
-	.id            = 0,
+	.id            = -1,
 	.num_resources = ARRAY_SIZE(msm_etb_resources),
 	.resource      = msm_etb_resources,
 };
@@ -2546,7 +2629,7 @@ static struct resource msm_tpiu_resources[] = {
 
 struct platform_device msm_tpiu_device = {
 	.name          = "msm_tpiu",
-	.id            = 0,
+	.id            = -1,
 	.num_resources = ARRAY_SIZE(msm_tpiu_resources),
 	.resource      = msm_tpiu_resources,
 };
@@ -2561,44 +2644,24 @@ static struct resource msm_funnel_resources[] = {
 
 struct platform_device msm_funnel_device = {
 	.name          = "msm_funnel",
-	.id            = 0,
+	.id            = -1,
 	.num_resources = ARRAY_SIZE(msm_funnel_resources),
 	.resource      = msm_funnel_resources,
 };
 
-static struct resource msm_debug_resources[] = {
+static struct resource msm_etm_resources[] = {
 	{
-		.start = MSM_DEBUG_PHYS_BASE,
-		.end   = MSM_DEBUG_PHYS_BASE + SZ_4K - 1,
-		.flags = IORESOURCE_MEM,
-	},
-	{
-		.start = MSM_DEBUG_PHYS_BASE + (SZ_4K * 2),
-		.end   = MSM_DEBUG_PHYS_BASE + (SZ_4K * 2) + SZ_4K - 1,
+		.start = MSM_ETM_PHYS_BASE,
+		.end   = MSM_ETM_PHYS_BASE + (SZ_4K * 2) - 1,
 		.flags = IORESOURCE_MEM,
 	},
 };
 
-struct platform_device msm_debug_device = {
-	.name          = "msm_debug",
-	.id            = 0,
-	.num_resources = ARRAY_SIZE(msm_debug_resources),
-	.resource      = msm_debug_resources,
-};
-
-static struct resource msm_ptm_resources[] = {
-	{
-		.start = MSM_PTM_PHYS_BASE,
-		.end   = MSM_PTM_PHYS_BASE + (SZ_4K * 2) - 1,
-		.flags = IORESOURCE_MEM,
-	},
-};
-
-struct platform_device msm_ptm_device = {
-	.name          = "msm_ptm",
-	.id            = 0,
-	.num_resources = ARRAY_SIZE(msm_ptm_resources),
-	.resource      = msm_ptm_resources,
+struct platform_device msm_etm_device = {
+	.name          = "msm_etm",
+	.id            = -1,
+	.num_resources = ARRAY_SIZE(msm_etm_resources),
+	.resource      = msm_etm_resources,
 };
 
 #endif

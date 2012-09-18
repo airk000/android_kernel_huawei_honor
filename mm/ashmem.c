@@ -361,6 +361,8 @@ static int ashmem_shrink(struct shrinker *s, struct shrink_control *sc)
 	if (!sc->nr_to_scan)
 		return lru_count;
 
+	/*< DTS2012021003176 yanzhijun 20120210 begin */
+	/* merge DTS2011120907436 yanzhijun */
 	/* android bug:When system memory is on low sate, some application (such as:SmsReceiverServ thread) 
 	will allocate memory while holding the ashmem_mutex in ashmem_mmap function may try to directly 
 	reclaim memory. Then ashmem_shrink() is called in same thread. It will deadlock at acquiring ashmem_mutex.
@@ -684,6 +686,33 @@ done:
 }
 #endif
 
+/*< DTS2012021003176 yanzhijun 20120210 begin */
+/* merge DTS2011120907436 yanzhijun */
+#ifndef CONFIG_HUAWEI_KERNEL
+static int ashmem_cache_op(struct ashmem_area *asma,
+	void (*cache_func)(unsigned long vstart, unsigned long length,
+				unsigned long pstart))
+{
+#ifdef CONFIG_OUTER_CACHE
+	unsigned long vaddr;
+#endif
+	mutex_lock(&ashmem_mutex);
+#ifndef CONFIG_OUTER_CACHE
+	cache_func(asma->vm_start, asma->size, 0);
+#else
+	for (vaddr = asma->vm_start; vaddr < asma->vm_start + asma->size;
+		vaddr += PAGE_SIZE) {
+		unsigned long physaddr;
+		physaddr = virtaddr_to_physaddr(vaddr);
+		if (!physaddr)
+			return -EINVAL;
+		cache_func(vaddr, PAGE_SIZE, physaddr);
+	}
+#endif
+	mutex_unlock(&ashmem_mutex);
+	return 0;
+}
+#else /* #ifndef CONFIG_HUAWEI_KERNEL */
 static int ashmem_cache_op(struct ashmem_area *asma,
 	void (*cache_func)(unsigned long vstart, unsigned long length,
 				unsigned long pstart))
@@ -713,6 +742,8 @@ done:
 	mutex_unlock(&ashmem_mutex);
 	return ret;
 }
+#endif
+/* DTS2012021003176 yanzhijun 20120210 end >*/ 
 
 static long ashmem_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {

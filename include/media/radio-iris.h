@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (c) 2011 Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2011-2012 Code Aurora Forum. All rights reserved.
  *
  * This file is based on include/net/bluetooth/hci_core.h
  *
@@ -129,7 +129,8 @@ void radio_hci_event_packet(struct radio_hci_dev *hdev, struct sk_buff *skb);
 #define HCI_OCF_FM_EN_WAN_AVD_CTRL          0x0014
 #define HCI_OCF_FM_EN_NOTCH_CTRL            0x0015
 #define HCI_OCF_FM_SET_EVENT_MASK           0x0016
-
+#define HCI_OCF_FM_SET_CH_DET_THRESHOLD     0x0017
+#define HCI_OCF_FM_GET_CH_DET_THRESHOLD     0x0018
 /* HCI trans control commans opcode*/
 #define HCI_OCF_FM_ENABLE_TRANS_REQ         0x0001
 #define HCI_OCF_FM_DISABLE_TRANS_REQ        0x0002
@@ -199,7 +200,7 @@ void radio_hci_event_packet(struct radio_hci_dev *hdev, struct sk_buff *skb);
 #define HCI_FM_ENABLE_TRANS_CMD 13
 #define HCI_FM_DISABLE_TRANS_CMD 14
 #define HCI_FM_GET_TX_CONFIG 15
-
+#define HCI_FM_GET_DET_CH_TH_CMD 16
 
 /* Defines for FM TX*/
 #define TX_PS_DATA_LENGTH 96
@@ -319,6 +320,14 @@ struct hci_fm_ssbi_peek {
 	__u16 start_address;
 } __packed;
 
+struct hci_fm_ch_det_threshold {
+	char sinr;
+	__u8 sinr_samples;
+	__u8 low_th;
+	__u8 high_th;
+
+} __packed;
+
 /*HCI events*/
 #define HCI_EV_TUNE_STATUS              0x01
 #define HCI_EV_RDS_LOCK_STATUS          0x02
@@ -354,6 +363,8 @@ struct hci_ev_tune_status {
 	__u8    stereo_prg;
 	__u8    rds_sync_status;
 	__u8    mute_mode;
+	char    sinr;
+	__u8	intf_det_th;
 } __packed;
 
 struct hci_ev_rds_rx_data {
@@ -548,6 +559,11 @@ enum v4l2_cid_private_iris_t {
 	V4L2_CID_PRIVATE_IRIS_SET_AUDIO_PATH, /* TAVARUA specific command */
 	V4L2_CID_PRIVATE_IRIS_DO_CALIBRATION,
 	V4L2_CID_PRIVATE_IRIS_SRCH_ALGORITHM, /* TAVARUA specific command */
+	V4L2_CID_PRIVATE_IRIS_GET_SINR,
+	V4L2_CID_PRIVATE_INTF_LOW_THRESHOLD,
+	V4L2_CID_PRIVATE_INTF_HIGH_THRESHOLD,
+	V4L2_CID_PRIVATE_SINR_THRESHOLD,
+	V4L2_CID_PRIVATE_SINR_SAMPLES,
 
 	/*using private CIDs under userclass*/
 	V4L2_CID_PRIVATE_IRIS_READ_DEFAULT = 0x00980928,
@@ -574,7 +590,8 @@ enum iris_evt_t {
 	IRIS_EVT_NEW_SRCH_LIST,
 	IRIS_EVT_NEW_AF_LIST,
 	IRIS_EVT_TXRDSDAT,
-	IRIS_EVT_TXRDSDONE
+	IRIS_EVT_TXRDSDONE,
+	IRIS_EVT_RADIO_DISABLED
 };
 enum emphasis_type {
 	FM_RX_EMP75 = 0x0,
@@ -687,7 +704,7 @@ enum search_t {
 #define MAX_PS_LENGTH	(96)
 #define MAX_RT_LENGTH	(64)
 #define RDS_GRP_CNTR_LEN (36)
-
+#define RX_RT_DATA_LENGTH (63)
 /* Search direction */
 #define SRCH_DIR_UP		(0)
 #define SRCH_DIR_DOWN		(1)

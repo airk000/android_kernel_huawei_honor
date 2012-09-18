@@ -1,4 +1,4 @@
-/* Copyright (c) 2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -22,6 +22,8 @@
 #include <linux/spi/spi.h>
 #include <linux/dma-mapping.h>
 #include <linux/platform_data/qcom_crypto_device.h>
+#include <linux/ion.h>
+#include <linux/memory.h>
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
 #include <asm/hardware/gic.h>
@@ -29,6 +31,7 @@
 
 #include <mach/board.h>
 #include <mach/msm_iomap.h>
+#include <mach/ion.h>
 #include <linux/usb/msm_hsusb.h>
 #include <linux/usb/android.h>
 #include <mach/socinfo.h>
@@ -37,7 +40,9 @@
 #include "devices.h"
 #include <mach/gpio.h>
 #include <mach/gpiomux.h>
+#ifdef CONFIG_ANDROID_PMEM
 #include <linux/android_pmem.h>
+#endif
 #include <mach/msm_memtypes.h>
 #include <linux/bootmem.h>
 #include <asm/setup.h>
@@ -46,27 +51,39 @@
 #include "msm_watchdog.h"
 #include "board-8064.h"
 
-#define MSM_PMEM_KERNEL_EBI1_SIZE  0x600000
-#define MSM_PMEM_ADSP_SIZE         0x3800000
-#define MSM_PMEM_AUDIO_SIZE        0x28B000
-#define MSM_PMEM_SIZE 0x1800000 /* 24 Mbytes */
+#define MSM_PMEM_ADSP_SIZE         0x7800000
+#define MSM_PMEM_AUDIO_SIZE        0x2B4000
+#ifdef CONFIG_FB_MSM_HDMI_AS_PRIMARY
+#define MSM_PMEM_SIZE 0x4000000 /* 64 Mbytes */
+#else
+#define MSM_PMEM_SIZE 0x2800000 /* 40 Mbytes */
+#endif
 
-static struct memtype_reserve apq8064_reserve_table[] __initdata = {
-	[MEMTYPE_SMI] = {
-	},
-	[MEMTYPE_EBI0] = {
-		.flags	=	MEMTYPE_FLAGS_1M_ALIGN,
-	},
-	[MEMTYPE_EBI1] = {
-		.flags	=	MEMTYPE_FLAGS_1M_ALIGN,
-	},
-};
+#ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
+#define MSM_PMEM_KERNEL_EBI1_SIZE  0x280000
+#define MSM_ION_SF_SIZE		MSM_PMEM_SIZE
+#define MSM_ION_MM_FW_SIZE	0x200000 /* (2MB) */
+#define MSM_ION_MM_SIZE		MSM_PMEM_ADSP_SIZE
+#define MSM_ION_QSECOM_SIZE	0x100000 /* (1MB) */
+#define MSM_ION_MFC_SIZE	SZ_8K
+#define MSM_ION_AUDIO_SIZE	MSM_PMEM_AUDIO_SIZE
+#define MSM_ION_HEAP_NUM	8
+#else
+#define MSM_PMEM_KERNEL_EBI1_SIZE  0x110C000
+#define MSM_ION_HEAP_NUM	1
+#endif
 
-static int apq8064_paddr_to_memtype(unsigned int paddr)
+#ifdef CONFIG_KERNEL_PMEM_EBI_REGION
+static unsigned pmem_kernel_ebi1_size = MSM_PMEM_KERNEL_EBI1_SIZE;
+static int __init pmem_kernel_ebi1_size_setup(char *p)
 {
-	return MEMTYPE_EBI1;
+	pmem_kernel_ebi1_size = memparse(p, NULL);
+	return 0;
 }
+early_param("pmem_kernel_ebi1_size", pmem_kernel_ebi1_size_setup);
+#endif
 
+#ifdef CONFIG_ANDROID_PMEM
 static unsigned pmem_size = MSM_PMEM_SIZE;
 static int __init pmem_size_setup(char *p)
 {
@@ -92,7 +109,10 @@ static int __init pmem_audio_size_setup(char *p)
 	return 0;
 }
 early_param("pmem_audio_size", pmem_audio_size_setup);
+#endif
 
+#ifdef CONFIG_ANDROID_PMEM
+#ifndef CONFIG_MSM_MULTIMEDIA_USE_ION
 static struct android_pmem_platform_data android_pmem_pdata = {
 	.name = "pmem",
 	.allocator_type = PMEM_ALLOCATORTYPE_ALLORNOTHING,
@@ -112,20 +132,12 @@ static struct android_pmem_platform_data android_pmem_adsp_pdata = {
 	.cached = 0,
 	.memory_type = MEMTYPE_EBI1,
 };
-
-static unsigned pmem_kernel_ebi1_size = MSM_PMEM_KERNEL_EBI1_SIZE;
-static int __init pmem_kernel_ebi1_size_setup(char *p)
-{
-	pmem_kernel_ebi1_size = memparse(p, NULL);
-	return 0;
-}
-early_param("pmem_kernel_ebi1_size", pmem_kernel_ebi1_size_setup);
-
 static struct platform_device android_pmem_adsp_device = {
 	.name = "android_pmem",
 	.id = 2,
 	.dev = { .platform_data = &android_pmem_adsp_pdata },
 };
+#endif
 
 static struct android_pmem_platform_data android_pmem_audio_pdata = {
 	.name = "pmem_audio",
@@ -139,12 +151,28 @@ static struct platform_device android_pmem_audio_device = {
 	.id = 4,
 	.dev = { .platform_data = &android_pmem_audio_pdata },
 };
+#endif
+
+static struct memtype_reserve apq8064_reserve_table[] __initdata = {
+	[MEMTYPE_SMI] = {
+	},
+	[MEMTYPE_EBI0] = {
+		.flags	=	MEMTYPE_FLAGS_1M_ALIGN,
+	},
+	[MEMTYPE_EBI1] = {
+		.flags	=	MEMTYPE_FLAGS_1M_ALIGN,
+	},
+};
 
 static void __init size_pmem_devices(void)
 {
+#ifdef CONFIG_ANDROID_PMEM
+#ifndef CONFIG_MSM_MULTIMEDIA_USE_ION
 	android_pmem_adsp_pdata.size = pmem_adsp_size;
 	android_pmem_pdata.size = pmem_size;
+#endif
 	android_pmem_audio_pdata.size = MSM_PMEM_AUDIO_SIZE;
+#endif
 }
 
 static void __init reserve_memory_for(struct android_pmem_platform_data *p)
@@ -154,16 +182,145 @@ static void __init reserve_memory_for(struct android_pmem_platform_data *p)
 
 static void __init reserve_pmem_memory(void)
 {
+#ifdef CONFIG_ANDROID_PMEM
+#ifndef CONFIG_MSM_MULTIMEDIA_USE_ION
 	reserve_memory_for(&android_pmem_adsp_pdata);
 	reserve_memory_for(&android_pmem_pdata);
+#endif
 	reserve_memory_for(&android_pmem_audio_pdata);
 	apq8064_reserve_table[MEMTYPE_EBI1].size += pmem_kernel_ebi1_size;
+#endif
+}
+
+static int apq8064_paddr_to_memtype(unsigned int paddr)
+{
+	return MEMTYPE_EBI1;
+}
+
+#ifdef CONFIG_ION_MSM
+#ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
+static struct ion_cp_heap_pdata cp_mm_ion_pdata = {
+	.permission_type = IPT_TYPE_MM_CARVEOUT,
+	.align = PAGE_SIZE,
+};
+
+static struct ion_cp_heap_pdata cp_mfc_ion_pdata = {
+	.permission_type = IPT_TYPE_MFC_SHAREDMEM,
+	.align = PAGE_SIZE,
+};
+
+static struct ion_co_heap_pdata co_ion_pdata = {
+	.adjacent_mem_id = INVALID_HEAP_ID,
+	.align = PAGE_SIZE,
+};
+
+static struct ion_co_heap_pdata fw_co_ion_pdata = {
+	.adjacent_mem_id = ION_CP_MM_HEAP_ID,
+	.align = SZ_128K,
+};
+#endif
+
+/**
+ * These heaps are listed in the order they will be allocated. Due to
+ * video hardware restrictions and content protection the FW heap has to
+ * be allocated adjacent (below) the MM heap and the MFC heap has to be
+ * allocated after the MM heap to ensure MFC heap is not more than 256MB
+ * away from the base address of the FW heap.
+ * However, the order of FW heap and MM heap doesn't matter since these
+ * two heaps are taken care of by separate code to ensure they are adjacent
+ * to each other.
+ * Don't swap the order unless you know what you are doing!
+ */
+static struct ion_platform_data ion_pdata = {
+	.nr = MSM_ION_HEAP_NUM,
+	.heaps = {
+		{
+			.id	= ION_SYSTEM_HEAP_ID,
+			.type	= ION_HEAP_TYPE_SYSTEM,
+			.name	= ION_VMALLOC_HEAP_NAME,
+		},
+#ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
+		{
+			.id	= ION_CP_MM_HEAP_ID,
+			.type	= ION_HEAP_TYPE_CP,
+			.name	= ION_MM_HEAP_NAME,
+			.size	= MSM_ION_MM_SIZE,
+			.memory_type = ION_EBI_TYPE,
+			.extra_data = (void *) &cp_mm_ion_pdata,
+		},
+		{
+			.id	= ION_MM_FIRMWARE_HEAP_ID,
+			.type	= ION_HEAP_TYPE_CARVEOUT,
+			.name	= ION_MM_FIRMWARE_HEAP_NAME,
+			.size	= MSM_ION_MM_FW_SIZE,
+			.memory_type = ION_EBI_TYPE,
+			.extra_data = (void *) &fw_co_ion_pdata,
+		},
+		{
+			.id	= ION_CP_MFC_HEAP_ID,
+			.type	= ION_HEAP_TYPE_CP,
+			.name	= ION_MFC_HEAP_NAME,
+			.size	= MSM_ION_MFC_SIZE,
+			.memory_type = ION_EBI_TYPE,
+			.extra_data = (void *) &cp_mfc_ion_pdata,
+		},
+		{
+			.id	= ION_SF_HEAP_ID,
+			.type	= ION_HEAP_TYPE_CARVEOUT,
+			.name	= ION_SF_HEAP_NAME,
+			.size	= MSM_ION_SF_SIZE,
+			.memory_type = ION_EBI_TYPE,
+			.extra_data = (void *) &co_ion_pdata,
+		},
+		{
+			.id	= ION_IOMMU_HEAP_ID,
+			.type	= ION_HEAP_TYPE_IOMMU,
+			.name	= ION_IOMMU_HEAP_NAME,
+		},
+		{
+			.id	= ION_QSECOM_HEAP_ID,
+			.type	= ION_HEAP_TYPE_CARVEOUT,
+			.name	= ION_QSECOM_HEAP_NAME,
+			.size	= MSM_ION_QSECOM_SIZE,
+			.memory_type = ION_EBI_TYPE,
+			.extra_data = (void *) &co_ion_pdata,
+		},
+		{
+			.id	= ION_AUDIO_HEAP_ID,
+			.type	= ION_HEAP_TYPE_CARVEOUT,
+			.name	= ION_AUDIO_HEAP_NAME,
+			.size	= MSM_ION_AUDIO_SIZE,
+			.memory_type = ION_EBI_TYPE,
+			.extra_data = (void *) &co_ion_pdata,
+		},
+#endif
+	}
+};
+
+static struct platform_device ion_dev = {
+	.name = "ion-msm",
+	.id = 1,
+	.dev = { .platform_data = &ion_pdata },
+};
+#endif
+
+static void reserve_ion_memory(void)
+{
+#if defined(CONFIG_ION_MSM) && defined(CONFIG_MSM_MULTIMEDIA_USE_ION)
+	apq8064_reserve_table[MEMTYPE_EBI1].size += MSM_ION_MM_SIZE;
+	apq8064_reserve_table[MEMTYPE_EBI1].size += MSM_ION_MM_FW_SIZE;
+	apq8064_reserve_table[MEMTYPE_EBI1].size += MSM_ION_SF_SIZE;
+	apq8064_reserve_table[MEMTYPE_EBI1].size += MSM_ION_MFC_SIZE;
+	apq8064_reserve_table[MEMTYPE_EBI1].size += MSM_ION_QSECOM_SIZE;
+	apq8064_reserve_table[MEMTYPE_EBI1].size += MSM_ION_AUDIO_SIZE;
+#endif
 }
 
 static void __init apq8064_calculate_reserve_sizes(void)
 {
 	size_pmem_devices();
 	reserve_pmem_memory();
+	reserve_ion_memory();
 }
 
 static struct reserve_info apq8064_reserve_info __initdata = {
@@ -186,12 +343,19 @@ static void __init locate_unstable_memory(void)
 	bank_size = apq8064_memory_bank_size();
 	low = meminfo.bank[0].start;
 	high = mb->start + mb->size;
+
+	/* Check if 32 bit overflow occured */
+	if (high < mb->start)
+		high = ~0UL;
+
 	low &= ~(bank_size - 1);
 
 	if (high - low <= bank_size)
 		return;
-	apq8064_reserve_info.low_unstable_address = low + bank_size;
-	apq8064_reserve_info.max_unstable_size = high - low - bank_size;
+	apq8064_reserve_info.low_unstable_address = mb->start -
+					MIN_MEMORY_BLOCK_SIZE + mb->size;
+	apq8064_reserve_info.max_unstable_size = MIN_MEMORY_BLOCK_SIZE;
+
 	apq8064_reserve_info.bank_size = bank_size;
 	pr_info("low unstable address %lx max size %lx bank size %lx\n",
 		apq8064_reserve_info.low_unstable_address,
@@ -215,7 +379,6 @@ static struct msm_otg_platform_data msm_otg_pdata = {
 	.mode			= USB_PERIPHERAL,
 	.otg_control		= OTG_PHY_CONTROL,
 	.phy_type		= SNPS_28NM_INTEGRATED_PHY,
-	.pclk_src_name		= "dfab_usb_hs_clk",
 };
 
 #define TABLA_INTERRUPT_BASE (NR_MSM_IRQS + NR_GPIO_IRQS + NR_PM8921_IRQS)
@@ -234,7 +397,7 @@ static struct tabla_pdata apq8064_tabla_platform_data = {
 		.name = "tabla-slave",
 		.e_addr = {0, 0, 0x10, 0, 0x17, 2},
 	},
-	.irq = MSM_GPIO_TO_INT(62),
+	.irq = MSM_GPIO_TO_INT(42),
 	.irq_base = TABLA_INTERRUPT_BASE,
 	.num_irqs = NR_TABLA_IRQS,
 	.reset_gpio = PM8921_GPIO_PM_TO_SYS(34),
@@ -255,6 +418,35 @@ static struct slim_device apq8064_slim_tabla = {
 	.e_addr = {0, 1, 0x10, 0, 0x17, 2},
 	.dev = {
 		.platform_data = &apq8064_tabla_platform_data,
+	},
+};
+
+static struct tabla_pdata apq8064_tabla20_platform_data = {
+	.slimbus_slave_device = {
+		.name = "tabla-slave",
+		.e_addr = {0, 0, 0x60, 0, 0x17, 2},
+	},
+	.irq = MSM_GPIO_TO_INT(42),
+	.irq_base = TABLA_INTERRUPT_BASE,
+	.num_irqs = NR_TABLA_IRQS,
+	.reset_gpio = PM8921_GPIO_PM_TO_SYS(34),
+	.micbias = {
+		.ldoh_v = TABLA_LDOH_2P85_V,
+		.cfilt1_mv = 1800,
+		.cfilt2_mv = 1800,
+		.cfilt3_mv = 1800,
+		.bias1_cfilt_sel = TABLA_CFILT1_SEL,
+		.bias2_cfilt_sel = TABLA_CFILT2_SEL,
+		.bias3_cfilt_sel = TABLA_CFILT3_SEL,
+		.bias4_cfilt_sel = TABLA_CFILT3_SEL,
+	}
+};
+
+static struct slim_device apq8064_slim_tabla20 = {
+	.name = "tabla2x-slim",
+	.e_addr = {0, 1, 0x60, 0, 0x17, 2},
+	.dev = {
+		.platform_data = &apq8064_tabla20_platform_data,
 	},
 };
 
@@ -333,6 +525,7 @@ static struct msm_ce_hw_support qcrypto_ce_hw_suppport = {
 	.shared_ce_resource = QCE_SHARE_CE_RESOURCE,
 	.hw_key_support = QCE_HW_KEY_SUPPORT,
 	.sha_hmac = QCE_SHA_HMAC_SUPPORT,
+	.bus_scale_table = NULL,
 };
 
 static struct platform_device qcrypto_device = {
@@ -355,6 +548,7 @@ static struct msm_ce_hw_support qcedev_ce_hw_suppport = {
 	.shared_ce_resource = QCE_SHARE_CE_RESOURCE,
 	.hw_key_support = QCE_HW_KEY_SUPPORT,
 	.sha_hmac = QCE_SHA_HMAC_SUPPORT,
+	.bus_scale_table = NULL,
 };
 
 static struct platform_device qcedev_device = {
@@ -381,7 +575,6 @@ static void __init apq8064_map_io(void)
 
 static void __init apq8064_init_irq(void)
 {
-	unsigned int i;
 	gic_init(0, GIC_PPI_START, MSM_QGIC_DIST_BASE,
 						(void *)MSM_QGIC_CPU_BASE);
 
@@ -390,16 +583,6 @@ static void __init apq8064_init_irq(void)
 
 	writel_relaxed(0x0000FFFF, MSM_QGIC_DIST_BASE + GIC_DIST_ENABLE_SET);
 	mb();
-
-	/*
-	 * FIXME: Not installing AVS_SVICINT and AVS_SVICINTSWDONE yet
-	 * as they are configured as level, which does not play nice with
-	 * handle_percpu_irq.
-	 */
-	for (i = GIC_PPI_START; i < GIC_SPI_START; i++) {
-		if (i != AVS_SVICINT && i != AVS_SVICINTSWDONE)
-			irq_set_handler(i, handle_percpu_irq);
-	}
 }
 
 static struct platform_device msm8064_device_saw_regulator_core0 = {
@@ -445,9 +628,16 @@ static struct platform_device *common_devices[] __initdata = {
 	&apq8064_device_otg,
 	&apq8064_device_gadget_peripheral,
 	&android_usb_device,
+#ifdef CONFIG_ANDROID_PMEM
+#ifndef CONFIG_MSM_MULTIMEDIA_USE_ION
 	&android_pmem_device,
 	&android_pmem_adsp_device,
+#endif
 	&android_pmem_audio_device,
+#endif
+#ifdef CONFIG_ION_MSM
+	&ion_dev,
+#endif
 	&msm8064_device_watchdog,
 	&msm8064_device_saw_regulator_core0,
 	&msm8064_device_saw_regulator_core1,
@@ -466,27 +656,28 @@ static struct platform_device *common_devices[] __initdata = {
 #ifdef CONFIG_HW_RANDOM_MSM
 	&apq8064_device_rng,
 #endif
-	&msm_pcm,
-	&msm_pcm_routing,
-	&msm_cpudai0,
-	&msm_cpudai1,
-	&msm_cpudai_hdmi_rx,
-	&msm_cpudai_bt_rx,
-	&msm_cpudai_bt_tx,
-	&msm_cpudai_fm_rx,
-	&msm_cpudai_fm_tx,
-	&msm_cpu_fe,
-	&msm_stub_codec,
-	&msm_voice,
-	&msm_voip,
-	&msm_lpa_pcm,
-	&msm_cpudai_afe_01_rx,
-	&msm_cpudai_afe_01_tx,
-	&msm_cpudai_afe_02_rx,
-	&msm_cpudai_afe_02_tx,
-	&msm_pcm_afe,
-	&msm_cpudai_auxpcm_rx,
-	&msm_cpudai_auxpcm_tx,
+	&apq_pcm,
+	&apq_pcm_routing,
+	&apq_cpudai0,
+	&apq_cpudai1,
+	&apq_cpudai_hdmi_rx,
+	&apq_cpudai_bt_rx,
+	&apq_cpudai_bt_tx,
+	&apq_cpudai_fm_rx,
+	&apq_cpudai_fm_tx,
+	&apq_cpu_fe,
+	&apq_stub_codec,
+	&apq_voice,
+	&apq_voip,
+	&apq_lpa_pcm,
+	&apq_pcm_hostless,
+	&apq_cpudai_afe_01_rx,
+	&apq_cpudai_afe_01_tx,
+	&apq_cpudai_afe_02_rx,
+	&apq_cpudai_afe_02_tx,
+	&apq_pcm_afe,
+	&apq_cpudai_auxpcm_rx,
+	&apq_cpudai_auxpcm_tx,
 };
 
 static struct platform_device *sim_devices[] __initdata = {
@@ -497,10 +688,6 @@ static struct platform_device *sim_devices[] __initdata = {
 static struct platform_device *rumi3_devices[] __initdata = {
 	&apq8064_device_uart_gsbi1,
 	&msm_device_sps_apq8064,
-	&msm_cpudai_bt_rx,
-	&msm_cpudai_bt_tx,
-	&msm_cpudai_fm_rx,
-	&msm_cpudai_fm_tx,
 };
 
 static struct msm_spi_platform_data apq8064_qup_spi_gsbi5_pdata = {
@@ -522,8 +709,12 @@ static struct spi_board_info spi_board_info[] __initdata = {
 
 static struct slim_boardinfo apq8064_slim_devices[] = {
 	{
-	.bus_num = 1,
-	.slim_slave = &apq8064_slim_tabla,
+		.bus_num = 1,
+		.slim_slave = &apq8064_slim_tabla,
+	},
+	{
+		.bus_num = 1,
+		.slim_slave = &apq8064_slim_tabla20,
 	},
 	/* add more slimbus slaves as needed */
 };
@@ -608,6 +799,7 @@ MACHINE_START(APQ8064_SIM, "QCT APQ8064 SIMULATOR")
 	.map_io = apq8064_map_io,
 	.reserve = apq8064_reserve,
 	.init_irq = apq8064_init_irq,
+	.handle_irq = gic_handle_irq,
 	.timer = &msm_timer,
 	.init_machine = apq8064_sim_init,
 MACHINE_END
@@ -616,6 +808,7 @@ MACHINE_START(APQ8064_RUMI3, "QCT APQ8064 RUMI3")
 	.map_io = apq8064_map_io,
 	.reserve = apq8064_reserve,
 	.init_irq = apq8064_init_irq,
+	.handle_irq = gic_handle_irq,
 	.timer = &msm_timer,
 	.init_machine = apq8064_rumi3_init,
 MACHINE_END

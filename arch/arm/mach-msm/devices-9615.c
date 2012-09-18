@@ -278,6 +278,53 @@ struct platform_device msm9615_device_qup_spi_gsbi3 = {
 	.resource	= resources_qup_spi_gsbi3,
 };
 
+#define LPASS_SLIMBUS_PHYS	0x28080000
+#define LPASS_SLIMBUS_BAM_PHYS	0x28084000
+#define LPASS_SLIMBUS_SLEW	(MSM9615_TLMM_PHYS + 0x207C)
+/* Board info for the slimbus slave device */
+static struct resource slimbus_res[] = {
+	{
+		.start	= LPASS_SLIMBUS_PHYS,
+		.end	= LPASS_SLIMBUS_PHYS + 8191,
+		.flags	= IORESOURCE_MEM,
+		.name	= "slimbus_physical",
+	},
+	{
+		.start	= LPASS_SLIMBUS_BAM_PHYS,
+		.end	= LPASS_SLIMBUS_BAM_PHYS + 8191,
+		.flags	= IORESOURCE_MEM,
+		.name	= "slimbus_bam_physical",
+	},
+	{
+		.start	= LPASS_SLIMBUS_SLEW,
+		.end	= LPASS_SLIMBUS_SLEW + 4 - 1,
+		.flags	= IORESOURCE_MEM,
+		.name	= "slimbus_slew_reg",
+	},
+	{
+		.start	= SLIMBUS0_CORE_EE1_IRQ,
+		.end	= SLIMBUS0_CORE_EE1_IRQ,
+		.flags	= IORESOURCE_IRQ,
+		.name	= "slimbus_irq",
+	},
+	{
+		.start	= SLIMBUS0_BAM_EE1_IRQ,
+		.end	= SLIMBUS0_BAM_EE1_IRQ,
+		.flags	= IORESOURCE_IRQ,
+		.name	= "slimbus_bam_irq",
+	},
+};
+
+struct platform_device msm9615_slim_ctrl = {
+	.name	= "msm_slim_ctrl",
+	.id	= 1,
+	.num_resources	= ARRAY_SIZE(slimbus_res),
+	.resource	= slimbus_res,
+	.dev            = {
+		.coherent_dma_mask      = 0xffffffffULL,
+	},
+};
+
 static struct resource resources_ssbi_pmic1[] = {
 	{
 		.start  = MSM_PMIC1_SSBI_CMD_PHYS,
@@ -333,7 +380,7 @@ struct platform_device msm_device_sps = {
 };
 
 static struct tsens_platform_data msm_tsens_pdata = {
-	.slope			= 910,
+	.slope			= {910, 910, 910, 910, 910},
 	.tsens_factor		= 1000,
 	.hw_type		= MSM_9615,
 	.tsens_num_sensor	= 5,
@@ -480,6 +527,7 @@ static struct msm_ce_hw_support qcrypto_ce_hw_suppport = {
 	.shared_ce_resource = QCE_SHARE_CE_RESOURCE,
 	.hw_key_support = QCE_HW_KEY_SUPPORT,
 	.sha_hmac = QCE_SHA_HMAC_SUPPORT,
+	.bus_scale_table = NULL,
 };
 
 struct platform_device msm9615_qcrypto_device = {
@@ -502,6 +550,7 @@ static struct msm_ce_hw_support qcedev_ce_hw_suppport = {
 	.shared_ce_resource = QCE_SHARE_CE_RESOURCE,
 	.hw_key_support = QCE_HW_KEY_SUPPORT,
 	.sha_hmac = QCE_SHA_HMAC_SUPPORT,
+	.bus_scale_table = NULL,
 };
 
 struct platform_device msm9615_qcedev_device = {
@@ -735,7 +784,6 @@ static uint16_t msm_mpm_irqs_m2a[MSM_MPM_NR_MPM_IRQS] = {
 	[20] = MSM_GPIO_TO_INT(28),
 	[23] = MSM_GPIO_TO_INT(19),
 	[24] = MSM_GPIO_TO_INT(23),
-	[25] = USB1_HS_IRQ,
 	[26] = MSM_GPIO_TO_INT(3),
 	[27] = MSM_GPIO_TO_INT(68),
 	[29] = MSM_GPIO_TO_INT(78),
@@ -745,6 +793,7 @@ static uint16_t msm_mpm_irqs_m2a[MSM_MPM_NR_MPM_IRQS] = {
 	[34] = MSM_GPIO_TO_INT(17),
 	[37] = MSM_GPIO_TO_INT(20),
 	[39] = MSM_GPIO_TO_INT(84),
+	[40] = USB1_HS_IRQ,
 	[42] = MSM_GPIO_TO_INT(24),
 	[43] = MSM_GPIO_TO_INT(79),
 	[44] = MSM_GPIO_TO_INT(80),
@@ -767,10 +816,13 @@ static uint16_t msm_mpm_bypassed_apps_irqs[] = {
 	RPM_APCC_CPU0_GP_MEDIUM_IRQ,
 	RPM_APCC_CPU0_GP_LOW_IRQ,
 	RPM_APCC_CPU0_WAKE_UP_IRQ,
+	MSS_TO_APPS_IRQ_0,
+	MSS_TO_APPS_IRQ_1,
 	LPASS_SCSS_GP_LOW_IRQ,
 	LPASS_SCSS_GP_MEDIUM_IRQ,
 	LPASS_SCSS_GP_HIGH_IRQ,
 	SPS_MTI_31,
+	A2_BAM_IRQ,
 };
 
 struct msm_mpm_device_data msm_mpm_dev_data = {
@@ -883,8 +935,6 @@ void __init msm9615_map_io(void)
 
 void __init msm9615_init_irq(void)
 {
-	unsigned int i;
-
 	msm_mpm_irq_extn_init();
 	gic_init(0, GIC_PPI_START, MSM_QGIC_DIST_BASE,
 						(void *)MSM_QGIC_CPU_BASE);
@@ -894,16 +944,6 @@ void __init msm9615_init_irq(void)
 
 	writel_relaxed(0x0000FFFF, MSM_QGIC_DIST_BASE + GIC_DIST_ENABLE_SET);
 	mb();
-
-	/*
-	 * FIXME: Not installing AVS_SVICINT and AVS_SVICINTSWDONE yet
-	 * as they are configured as level, which does not play nice with
-	 * handle_percpu_irq.
-	 */
-	for (i = GIC_PPI_START; i < GIC_SPI_START; i++) {
-		if (i != AVS_SVICINT && i != AVS_SVICINTSWDONE)
-			irq_set_handler(i, handle_percpu_irq);
-	}
 }
 
 struct platform_device msm_bus_9615_sys_fabric = {

@@ -3,7 +3,7 @@
  *
  *  Copyright (C) 2007 Google Inc,
  *  Copyright (C) 2003 Deep Blue Solutions, Ltd, All Rights Reserved.
- *  Copyright (c) 2009-2011, Code Aurora Forum. All rights reserved.
+ *  Copyright (c) 2009-2012, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -43,6 +43,7 @@
 #include <linux/gpio.h>
 #include <linux/regulator/consumer.h>
 #include <linux/slab.h>
+#include <linux/pm_qos_params.h>
 
 #include <asm/cacheflush.h>
 #include <asm/div64.h>
@@ -57,8 +58,30 @@
 
 #include "msm_sdcc.h"
 #include "msm_sdcc_dml.h"
+/*< DTS2012041800928 yuanmingming 20120418 begin */
+#include <linux/hardware_self_adapt.h>
+/* DTS2012041800928  yuanmingming 20120418 end > */
 
-#define SDCC_WIFI_SLOT		3
+/* < DTS2012011302816  hujun 20120113 begin */
+#ifdef CONFIG_HUAWEI_KERNEL
+#include <asm/mach-types.h>
+/* < DTS2012042302547 chendeng 20120428 begin */
+#ifdef CONFIG_ARCH_MSM7X30
+#define SDCC_SDCARD_SLOT	4
+#endif
+#ifdef CONFIG_ARCH_MSM7X27A
+#define SDCC_SDCARD_SLOT	1
+#endif
+/* DTS2012042302547 chendeng 20120428 end > */
+#endif
+/* DTS2012011302816  hujun 20120113 end > */
+
+/* < DTS2010111804286  hanshirong 20101118 begin */
+/* < DTS2012020402114 zhuwenying 20120206 begin */
+int sdcc_wifi_slot = -1;
+#define SDCC_WIFI_SLOT		(sdcc_wifi_slot)
+/* DTS2012020402114 zhuwenying 20120206 end > */
+/* DTS2010111804286  hanshirong 20101118 end > */
 
 #define DRIVER_NAME "msm-sdcc"
 
@@ -71,6 +94,7 @@
 #define SPS_CONS_PERIPHERAL		0
 #define SPS_PROD_PERIPHERAL		1
 
+/* < DTS2011082302187 caomingxing 20110823 begin */
 #ifdef CONFIG_HUAWEI_KERNEL
 int mmc_debug_mask = 0;
 module_param_named(debug_mask, mmc_debug_mask, int, 
@@ -82,6 +106,7 @@ module_param_named(debug_mask, mmc_debug_mask, int,
 		    printk(fmt, args); \
 	} while (0)
 #endif /* CONFIG_HUAWEI_KERNEL */
+/* DTS2011082302187 caomingxing 20110823 end > */
 
 #if defined(CONFIG_DEBUG_FS)
 static void msmsdcc_dbg_createhost(struct msmsdcc_host *);
@@ -146,6 +171,7 @@ static void
 msmsdcc_start_command(struct msmsdcc_host *host, struct mmc_command *cmd,
 		      u32 c);
 static inline void msmsdcc_delay(struct msmsdcc_host *host);
+static void msmsdcc_dump_sdcc_state(struct msmsdcc_host *host);
 
 static inline unsigned short msmsdcc_get_nr_sg(struct msmsdcc_host *host)
 {
@@ -161,26 +187,22 @@ static inline unsigned short msmsdcc_get_nr_sg(struct msmsdcc_host *host)
 	return ret;
 }
 
-static inline unsigned int msmsdcc_get_max_seg_size(struct msmsdcc_host *host)
+/* Prevent idle power collapse(pc) while operating in peripheral mode */
+static void msmsdcc_pm_qos_update_latency(struct msmsdcc_host *host, int vote)
 {
-	unsigned int max_seg_size;
+	u32 swfi_latency = 0;
 
-	/*
-	 * SPS BAM has limitation of max. number of descriptors.
-	 * max. # of descriptors = SPS_MAX_DESCS
-	 * each descriptor can point to SPS_MAX_DESC_SIZE (16KB)
-	 * So (nr_sg * max_seg_size) should be limited to the
-	 * max. size that all of the descriptors can point to.
-	 * i.e., (nr_sg * max_seg_size) = (SPS_MAX_DESCS * SPS_MAX_DESC_SIZE).
-	 */
-	if (host->is_sps_mode) {
-		max_seg_size = (SPS_MAX_DESCS * SPS_MAX_DESC_SIZE) /
-			msmsdcc_get_nr_sg(host);
-	} else { /* DMA or PIO mode */
-		max_seg_size = MMC_MAX_REQ_SIZE;
-	}
+	if (!host->plat->swfi_latency)
+		return;
 
-	return max_seg_size;
+	swfi_latency = host->plat->swfi_latency + 1;
+
+	if (vote)
+		pm_qos_update_request(&host->pm_qos_req_dma,
+					swfi_latency);
+	else
+		pm_qos_update_request(&host->pm_qos_req_dma,
+					PM_QOS_DEFAULT_VALUE);
 }
 
 #ifdef CONFIG_MMC_MSM_SPS_SUPPORT
@@ -345,12 +367,16 @@ msmsdcc_request_end(struct msmsdcc_host *host, struct mmc_request *mrq)
 
 	BUG_ON(host->curr.data);
 
+/* < DTS2011080401640 caomingxing 20110816 begin */
 #ifdef CONFIG_HUAWEI_KERNEL 
+    /* < DTS2011082302187 caomingxing 20110823 begin */
     HUAWEI_DBG("HUAWEI %s: req end (CMD%u): %08x %08x %08x %08x\n",
+    /* DTS2011082302187 caomingxing 20110823 end > */
 			mmc_hostname(host->mmc), mrq->cmd->opcode,
 			mrq->cmd->resp[0], mrq->cmd->resp[1],
 			mrq->cmd->resp[2], mrq->cmd->resp[3]);
 #endif 
+/* DTS2011080401640 caomingxing 20110816 end > */
 			
 	host->curr.mrq = NULL;
 	host->curr.cmd = NULL;
@@ -739,7 +765,7 @@ static inline void msmsdcc_sps_complete_tlet(unsigned long data) { }
 static inline void msmsdcc_sps_exit_curr_xfer(struct msmsdcc_host *host) { }
 #endif /* CONFIG_MMC_MSM_SPS_SUPPORT */
 
-static void msmsdcc_enable_cdr_cm_sdc4_dll(struct msmsdcc_host *host);
+static int msmsdcc_enable_cdr_cm_sdc4_dll(struct msmsdcc_host *host);
 
 static void
 msmsdcc_dma_complete_func(struct msm_dmov_cmd *cmd,
@@ -1025,6 +1051,12 @@ msmsdcc_start_command_deferred(struct msmsdcc_host *host,
 		}
 	}
 
+	/* Clear CDR_EN bit for write operations */
+	if (host->tuning_needed && cmd->mrq->data &&
+			(cmd->mrq->data->flags & MMC_DATA_WRITE))
+		writel_relaxed((readl_relaxed(host->base + MCI_DLL_CONFIG) &
+				~MCI_CDR_EN), host->base + MCI_DLL_CONFIG);
+
 	if ((cmd->flags & MMC_RSP_R1B) == MMC_RSP_R1B) {
 		*c |= MCI_CPSM_PROGENA;
 		host->prog_enable = 1;
@@ -1192,9 +1224,11 @@ msmsdcc_data_err(struct msmsdcc_host *host, struct mmc_data *data,
 		 */
 		if (!(data->mrq->cmd->opcode == MMC_BUS_TEST_W
 			|| data->mrq->cmd->opcode == MMC_BUS_TEST_R)) {
-			pr_err("%s: Data timeout\n",
-				 mmc_hostname(host->mmc));
+			pr_err("%s: CMD%d: Data timeout\n",
+				 mmc_hostname(host->mmc),
+				 data->mrq->cmd->opcode);
 			data->error = -ETIMEDOUT;
+			msmsdcc_dump_sdcc_state(host);
 		}
 	} else if (status & MCI_RXOVERRUN) {
 		pr_err("%s: RX overrun\n", mmc_hostname(host->mmc));
@@ -1295,13 +1329,24 @@ msmsdcc_pio_irq(int irq, void *dev_id)
 
 		/* Map the current scatter buffer */
 		local_irq_save(flags);
+/* < DTS2010111804286  hanshirong 20101118 begin */
 #ifdef CONFIG_HUAWEI_WIFI_SDCC
-		if ( NULL == host->pio.sg ) {
-			local_irq_restore(flags);
-			printk(KERN_ERR"host->pio.sg is NULL\n");
-			break;
-		}
+/*< DTS2012041800928 yuanmingming 20120418 begin */
+        if (host->pdev_id == SDCC_WIFI_SLOT) 
+        {
+            if(WIFI_BROADCOM == get_hw_wifi_device_type())
+            {
+        		if ( NULL == host->pio.sg ) {
+        			local_irq_restore(flags);
+        			printk(KERN_ERR"host->pio.sg is NULL\n");
+        			break;
+                }
+            }
+        }
+/* DTS2012041800928  yuanmingming 20120418 end > */
 #endif
+/* DTS2010111804286  hanshirong 20101118 end > */
+		
 		buffer = kmap_atomic(sg_page(host->pio.sg),
 				     KM_BIO_SRC_IRQ) + host->pio.sg->offset;
 		buffer += host->pio.sg_off;
@@ -1312,6 +1357,9 @@ msmsdcc_pio_irq(int irq, void *dev_id)
 			len = msmsdcc_pio_read(host, buffer, remain);
 		if (status & MCI_TXACTIVE)
 			len = msmsdcc_pio_write(host, buffer, remain);
+		/* len might have aligned to 32bits above */
+		if (len > remain)
+			len = remain;
 
 		/* Unmap the buffer */
 		kunmap_atomic(buffer, KM_BIO_SRC_IRQ);
@@ -1412,11 +1460,14 @@ static void msmsdcc_do_cmdirq(struct msmsdcc_host *host, uint32_t status)
 	cmd->resp[3] = readl_relaxed(host->base + MMCIRESPONSE3);
 
 	if (status & (MCI_CMDTIMEOUT | MCI_AUTOCMD19TIMEOUT)) {
-		pr_debug("%s: Command timeout\n", mmc_hostname(host->mmc));
+		pr_debug("%s: CMD%d: Command timeout\n",
+				mmc_hostname(host->mmc), cmd->opcode);
 		cmd->error = -ETIMEDOUT;
 	} else if ((status & MCI_CMDCRCFAIL && cmd->flags & MMC_RSP_CRC) &&
 			!host->cmd19_tuning_in_progress) {
-		pr_err("%s: Command CRC error\n", mmc_hostname(host->mmc));
+		pr_err("%s: CMD%d: Command CRC error\n",
+			mmc_hostname(host->mmc), cmd->opcode);
+		msmsdcc_dump_sdcc_state(host);
 		cmd->error = -EILSEQ;
 	}
 
@@ -1664,11 +1715,15 @@ msmsdcc_irq(int irq, void *dev_id)
 static void
 msmsdcc_request_start(struct msmsdcc_host *host, struct mmc_request *mrq)
 {
+/* < DTS2011080401640 caomingxing 20110816 begin */
 #ifdef CONFIG_HUAWEI_KERNEL 
+    /* < DTS2011082302187 caomingxing 20110823 begin */
     HUAWEI_DBG("HUAWEI %s: starting CMD%u arg %08x flags %08x\n",
+    /* DTS2011082302187 caomingxing 20110823 end > */
 		 mmc_hostname(host->mmc), mrq->cmd->opcode,
 		 mrq->cmd->arg, mrq->cmd->flags);
 #endif
+/* DTS2011080401640 caomingxing 20110816 end > */
 	if (mrq->data && mrq->data->flags & MMC_DATA_READ) {
 		/* Queue/read data, daisy-chain command when data starts */
 		if (mrq->sbc)
@@ -2222,13 +2277,17 @@ msmsdcc_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 	unsigned int clock;
 
 	DBG(host, "ios->clock = %u\n", ios->clock);
+/* < DTS2011080401640 caomingxing 20110816 begin */
 #ifdef CONFIG_HUAWEI_KERNEL 
+    /* < DTS2011082302187 caomingxing 20110823 begin */
     HUAWEI_DBG("%s: clock %uHz busmode %u powermode %u cs %u Vdd %u "
+    /* DTS2011082302187 caomingxing 20110823 end > */
 		"width %u timing %u\n",
 		 mmc_hostname(mmc), ios->clock, ios->bus_mode,
 		 ios->power_mode, ios->chip_select, ios->vdd,
 		 ios->bus_width, ios->timing);
 #endif
+/* DTS2011080401640 caomingxing 20110816 end > */
 	
 	if (ios->clock) {
 		spin_lock_irqsave(&host->lock, flags);
@@ -2237,7 +2296,9 @@ msmsdcc_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 			host->clks_on = 1;
 			if (mmc->card && mmc->card->type == MMC_TYPE_SDIO) {
 				if (!host->plat->sdiowakeup_irq) {
+/* < DTS2012011902218 zhuwenying 20120119 begin */
 					/* roll back xuke modification */
+					/* < DTS2011041800861 xuke 20110418 begin */
 					writel_relaxed(host->mci_irqenable,
 							host->base + MMCIMASK0);
 					mb();
@@ -2246,6 +2307,8 @@ msmsdcc_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 						host->plat->cfg_mpm_sdiowakeup(
 						mmc_dev(mmc), SDC_DAT1_DISWAKE);
 					msmsdcc_disable_irq_wake(host);
+					/* DTS2011041800861 xuke 20110418 end > */			
+/* DTS2012011902218 zhuwenying 20120119 end > */
 				} else if (!(mmc->pm_flags &
 							MMC_PM_WAKE_SDIO_IRQ)) {
 					writel_relaxed(host->mci_irqenable,
@@ -2284,7 +2347,7 @@ msmsdcc_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 		if (clock != host->clk_rate) {
 			rc = clk_set_rate(host->clk, clock);
 			if (rc < 0)
-				pr_debug("%s: failed to set clk rate %u\n",
+				pr_err("%s: failed to set clk rate %u\n",
 						mmc_hostname(mmc), clock);
 			host->clk_rate = clock;
 			host->reg_write_delay =
@@ -2317,8 +2380,7 @@ msmsdcc_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 	 * Select the controller timing mode according
 	 * to current bus speed mode
 	 */
-	if ((ios->timing == MMC_TIMING_UHS_SDR104) ||
-		(ios->timing == MMC_TIMING_UHS_SDR50)) {
+	if (ios->timing == MMC_TIMING_UHS_SDR104) {
 		clk |= (4 << 14);
 		host->tuning_needed = 1;
 	} else if (ios->timing == MMC_TIMING_UHS_DDR50) {
@@ -2329,6 +2391,10 @@ msmsdcc_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 
 	/* Select free running MCLK as input clock of cm_dll_sdc4 */
 	clk |= (2 << 23);
+
+	/* Clear IO_PAD_PWR_SWITCH while powering off the card */
+	if (!ios->vdd)
+		host->io_pad_pwr_switch = 0;
 
 	if (host->io_pad_pwr_switch)
 		clk |= IO_PAD_PWR_SWITCH;
@@ -2401,7 +2467,9 @@ msmsdcc_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 	if (!(clk & MCI_CLK_ENABLE) && host->clks_on) {
 		if (mmc->card && mmc->card->type == MMC_TYPE_SDIO) {
 			if (!host->plat->sdiowakeup_irq) {
+/* < DTS2012011902218 zhuwenying 20120119 begin */
 				/* roll back xuke modification */
+				/* < DTS2011041800861 xuke 20110418 begin */	
 				writel_relaxed(MCI_SDIOINTMASK,
 						host->base + MMCIMASK0);
 				mb();
@@ -2410,6 +2478,8 @@ msmsdcc_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 					host->plat->cfg_mpm_sdiowakeup(
 						mmc_dev(mmc), SDC_DAT1_ENWAKE);
 				msmsdcc_enable_irq_wake(host);
+				/* DTS2011041800861 xuke 20110418 end > */			
+/* DTS2012011902218 zhuwenying 20120119 end > */
 			} else if (mmc->pm_flags & MMC_PM_WAKE_SDIO_IRQ) {
 				writel_relaxed(0, host->base + MMCIMASK0);
 			} else {
@@ -2421,6 +2491,11 @@ msmsdcc_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 		msmsdcc_setup_clocks(host, false);
 		host->clks_on = 0;
 	}
+
+	if (host->cmd19_tuning_in_progress)
+		WARN(!host->clks_on,
+			"cmd19_tuning_in_progress but SDCC clocks are OFF\n");
+
 	spin_unlock_irqrestore(&host->lock, flags);
 }
 
@@ -2505,6 +2580,12 @@ static int msmsdcc_enable(struct mmc_host *mmc)
 {
 	int rc;
 	struct device *dev = mmc->parent;
+	struct msmsdcc_host *host = mmc_priv(mmc);
+
+	msmsdcc_pm_qos_update_latency(host, 1);
+
+	if (mmc->card && mmc_card_sdio(mmc->card) && host->is_resumed)
+		return 0;
 
 	if (dev->power.runtime_status == RPM_SUSPENDING) {
 		if (mmc->suspend_task == current) {
@@ -2520,6 +2601,8 @@ static int msmsdcc_enable(struct mmc_host *mmc)
 				__func__, rc);
 		return rc;
 	}
+
+	host->is_resumed = true;
 out:
 	return 0;
 }
@@ -2529,9 +2612,12 @@ static int msmsdcc_disable(struct mmc_host *mmc, int lazy)
 	int rc;
 	struct msmsdcc_host *host = mmc_priv(mmc);
 
+	msmsdcc_pm_qos_update_latency(host, 0);
+
+	if (mmc->card && mmc_card_sdio(mmc->card))
+		return 0;
+
 	if (host->plat->disable_runtime_pm)
-		return -ENOTSUPP;
-	if (mmc->card && mmc->card->type == MMC_TYPE_SDIO)
 		return -ENOTSUPP;
 
 	rc = pm_runtime_put_sync(mmc->parent);
@@ -2539,6 +2625,9 @@ static int msmsdcc_disable(struct mmc_host *mmc, int lazy)
 	if (rc < 0)
 		pr_info("%s: %s: failed with error %d", mmc_hostname(mmc),
 				__func__, rc);
+	else
+		host->is_resumed = false;
+
 	return rc;
 }
 #else
@@ -2546,6 +2635,8 @@ static int msmsdcc_enable(struct mmc_host *mmc)
 {
 	struct msmsdcc_host *host = mmc_priv(mmc);
 	unsigned long flags;
+
+	msmsdcc_pm_qos_update_latency(host, 1);
 
 	spin_lock_irqsave(&host->lock, flags);
 	if (!host->clks_on) {
@@ -2562,8 +2653,10 @@ static int msmsdcc_disable(struct mmc_host *mmc, int lazy)
 	struct msmsdcc_host *host = mmc_priv(mmc);
 	unsigned long flags;
 
+	msmsdcc_pm_qos_update_latency(host, 0);
+
 	if (mmc->card && mmc_card_sdio(mmc->card))
-		return -ENOTSUPP;
+		return 0;
 
 	spin_lock_irqsave(&host->lock, flags);
 	if (host->clks_on) {
@@ -2582,6 +2675,10 @@ static int msmsdcc_start_signal_voltage_switch(struct mmc_host *mmc,
 	struct msmsdcc_host *host = mmc_priv(mmc);
 	unsigned long flags;
 	int rc = 0;
+
+	spin_lock_irqsave(&host->lock, flags);
+	host->io_pad_pwr_switch = 0;
+	spin_unlock_irqrestore(&host->lock, flags);
 
 	if (ios->signal_voltage == MMC_SIGNAL_VOLTAGE_330) {
 		/* Change voltage level of VDDPX to high voltage */
@@ -2667,97 +2764,9 @@ out:
 	return rc;
 }
 
-static int msmsdcc_config_cm_sdc4_dll_phase(struct msmsdcc_host *host,
-						u8 phase);
-/* Initialize the DLL (Programmable Delay Line ) */
-static int msmsdcc_init_cm_sdc4_dll(struct msmsdcc_host *host)
+static inline void msmsdcc_cm_sdc4_dll_set_freq(struct msmsdcc_host *host)
 {
-	int rc = 0;
-	u32 wait_timeout;
-
-	/* Write 0 to DLL_PDN bit of MCI_DLL_CONFIG register */
-	writel_relaxed((readl_relaxed(host->base + MCI_DLL_CONFIG)
-			& ~MCI_DLL_PDN), host->base + MCI_DLL_CONFIG);
-
-	/* Write 1 to DLL_RST bit of MCI_DLL_CONFIG register */
-	writel_relaxed((readl_relaxed(host->base + MCI_DLL_CONFIG)
-			| MCI_DLL_RST), host->base + MCI_DLL_CONFIG);
-
-	msmsdcc_delay(host);
-
-	/* Write 0 to DLL_RST bit of MCI_DLL_CONFIG register */
-	writel_relaxed((readl_relaxed(host->base + MCI_DLL_CONFIG)
-			& ~MCI_DLL_RST), host->base + MCI_DLL_CONFIG);
-
-	/* Initialize the phase to 0 */
-	rc = msmsdcc_config_cm_sdc4_dll_phase(host, 0);
-	if (rc)
-		goto out;
-
-	wait_timeout = 1000;
-	/* Wait until DLL_LOCK bit of MCI_DLL_STATUS register becomes '1' */
-	while (!(readl_relaxed(host->base + MCI_DLL_STATUS) & MCI_DLL_LOCK)) {
-		/* max. wait for 1 sec for LOCK bit to be set */
-		if (--wait_timeout == 0) {
-			pr_err("%s: %s: DLL failed to lock at phase: %d",
-				mmc_hostname(host->mmc), __func__, 0);
-			rc = -1;
-			goto out;
-		}
-		/* wait for 1ms */
-		usleep_range(1000, 1500);
-	}
-out:
-	return rc;
-}
-
-/*
- * Enable a CDR circuit in CM_SDC4_DLL block to enable automatic
- * calibration sequence. This function should be called before
- * enabling AUTO_CMD19 bit in MCI_CMD register for block read
- * commands (CMD17/CMD18).
- */
-static void msmsdcc_enable_cdr_cm_sdc4_dll(struct msmsdcc_host *host)
-{
-	/* Set CDR_EN bit to 1. */
-	writel_relaxed((readl_relaxed(host->base + MCI_DLL_CONFIG) |
-			MCI_CDR_EN), host->base + MCI_DLL_CONFIG);
-
-	/* Set CDR_EXT_EN bit to 0. */
-	writel_relaxed((readl_relaxed(host->base + MCI_DLL_CONFIG)
-			& ~MCI_CDR_EXT_EN), host->base + MCI_DLL_CONFIG);
-
-	/* Set CK_OUT_EN bit to 0. */
-	writel_relaxed((readl_relaxed(host->base + MCI_DLL_CONFIG)
-			& ~MCI_CK_OUT_EN), host->base + MCI_DLL_CONFIG);
-
-	/* Wait until CK_OUT_EN bit of MCI_DLL_CONFIG register becomes '0' */
-	while (readl_relaxed(host->base + MCI_DLL_CONFIG) & MCI_CK_OUT_EN)
-		;
-
-	/* Set CK_OUT_EN bit of MCI_DLL_CONFIG register to 1. */
-	writel_relaxed((readl_relaxed(host->base + MCI_DLL_CONFIG)
-			| MCI_CK_OUT_EN), host->base + MCI_DLL_CONFIG);
-
-	/* Wait until CK_OUT_EN bit of MCI_DLL_CONFIG register is 1. */
-	while (!(readl_relaxed(host->base + MCI_DLL_CONFIG) & MCI_CK_OUT_EN))
-		;
-}
-
-static int msmsdcc_config_cm_sdc4_dll_phase(struct msmsdcc_host *host,
-						u8 phase)
-{
-	int rc = 0;
 	u32 mclk_freq = 0;
-	u32 wait_timeout;
-
-	/* Set CDR_EN bit to 0. */
-	writel_relaxed((readl_relaxed(host->base + MCI_DLL_CONFIG)
-			& ~MCI_CDR_EN), host->base + MCI_DLL_CONFIG);
-
-	/* Set CDR_EXT_EN bit to 1. */
-	writel_relaxed((readl_relaxed(host->base + MCI_DLL_CONFIG)
-			| MCI_CDR_EXT_EN), host->base + MCI_DLL_CONFIG);
 
 	/* Program the MCLK value to MCLK_FREQ bit field */
 	if (host->clk_rate <= 112000000)
@@ -2780,73 +2789,16 @@ static int msmsdcc_config_cm_sdc4_dll_phase(struct msmsdcc_host *host,
 	writel_relaxed(((readl_relaxed(host->base + MCI_DLL_CONFIG)
 			& ~(7 << 24)) | (mclk_freq << 24)),
 			host->base + MCI_DLL_CONFIG);
-
-	/* Set CK_OUT_EN bit to 0. */
-	writel_relaxed((readl_relaxed(host->base + MCI_DLL_CONFIG)
-		& ~MCI_CK_OUT_EN), host->base + MCI_DLL_CONFIG);
-
-	/* Set DLL_EN bit to 1. */
-	writel_relaxed((readl_relaxed(host->base + MCI_DLL_CONFIG)
-			| MCI_DLL_EN), host->base + MCI_DLL_CONFIG);
-
-	wait_timeout = 1000;
-	/* Wait until CK_OUT_EN bit of MCI_DLL_CONFIG register becomes '0' */
-	while (readl_relaxed(host->base + MCI_DLL_CONFIG) & MCI_CK_OUT_EN) {
-		/* max. wait for 1 sec for LOCK bit for be set */
-		if (--wait_timeout == 0) {
-			pr_err("%s: %s: Failed to set DLL phase: %d, CK_OUT_EN bit is not 0",
-				mmc_hostname(host->mmc), __func__, phase);
-			rc = -1;
-			goto out;
-		}
-		/* wait for 1ms */
-		usleep_range(1000, 1500);
-	}
-
-	/*
-	 * Write the selected DLL clock output phase (0 ... 15)
-	 * to CDR_SELEXT bit field of MCI_DLL_CONFIG register.
-	 */
-	writel_relaxed(((readl_relaxed(host->base + MCI_DLL_CONFIG)
-			& ~(0xF << 20)) | (phase << 20)),
-			host->base + MCI_DLL_CONFIG);
-
-	/* Set CK_OUT_EN bit of MCI_DLL_CONFIG register to 1. */
-	writel_relaxed((readl_relaxed(host->base + MCI_DLL_CONFIG)
-			| MCI_CK_OUT_EN), host->base + MCI_DLL_CONFIG);
-
-	wait_timeout = 1000;
-	/* Wait until CK_OUT_EN bit of MCI_DLL_CONFIG register becomes '1' */
-	while (!(readl_relaxed(host->base + MCI_DLL_CONFIG) & MCI_CK_OUT_EN)) {
-		/* max. wait for 1 sec for LOCK bit for be set */
-		if (--wait_timeout == 0) {
-			pr_err("%s: %s: Failed to set DLL phase: %d, CK_OUT_EN bit is not 1",
-				mmc_hostname(host->mmc), __func__, phase);
-			rc = -1;
-			goto out;
-		}
-		/* wait for 1ms */
-		usleep_range(1000, 1500);
-	}
-out:
-	return rc;
 }
 
-static int msmsdcc_execute_tuning(struct mmc_host *mmc)
+/* Initialize the DLL (Programmable Delay Line ) */
+static int msmsdcc_init_cm_sdc4_dll(struct msmsdcc_host *host)
 {
-	struct msmsdcc_host *host = mmc_priv(mmc);
-	u8 phase;
-	u8 *data_buf;
-	u8 tuned_phases[16], tuned_phase_cnt = 0;
 	int rc = 0;
+	unsigned long flags;
+	u32 wait_cnt;
 
-	/* Tuning is only required for SDR50 & SDR104 modes */
-	if (!host->tuning_needed) {
-		rc = 0;
-		goto out;
-	}
-
-	host->cmd19_tuning_in_progress = 1;
+	spin_lock_irqsave(&host->lock, flags);
 	/*
 	 * Make sure that clock is always enabled when DLL
 	 * tuning is in progress. Keeping PWRSAVE ON may
@@ -2855,7 +2807,281 @@ static int msmsdcc_execute_tuning(struct mmc_host *mmc)
 	 */
 	writel_relaxed((readl_relaxed(host->base + MMCICLOCK)
 			& ~MCI_CLK_PWRSAVE), host->base + MMCICLOCK);
+
+	/* Write 1 to DLL_RST bit of MCI_DLL_CONFIG register */
+	writel_relaxed((readl_relaxed(host->base + MCI_DLL_CONFIG)
+			| MCI_DLL_RST), host->base + MCI_DLL_CONFIG);
+
+	/* Write 1 to DLL_PDN bit of MCI_DLL_CONFIG register */
+	writel_relaxed((readl_relaxed(host->base + MCI_DLL_CONFIG)
+			| MCI_DLL_PDN), host->base + MCI_DLL_CONFIG);
+
+	msmsdcc_cm_sdc4_dll_set_freq(host);
+
+	/* Write 0 to DLL_RST bit of MCI_DLL_CONFIG register */
+	writel_relaxed((readl_relaxed(host->base + MCI_DLL_CONFIG)
+			& ~MCI_DLL_RST), host->base + MCI_DLL_CONFIG);
+
+	/* Write 0 to DLL_PDN bit of MCI_DLL_CONFIG register */
+	writel_relaxed((readl_relaxed(host->base + MCI_DLL_CONFIG)
+			& ~MCI_DLL_PDN), host->base + MCI_DLL_CONFIG);
+
+	/* Set DLL_EN bit to 1. */
+	writel_relaxed((readl_relaxed(host->base + MCI_DLL_CONFIG)
+			| MCI_DLL_EN), host->base + MCI_DLL_CONFIG);
+
+	/* Set CK_OUT_EN bit to 1. */
+	writel_relaxed((readl_relaxed(host->base + MCI_DLL_CONFIG)
+			| MCI_CK_OUT_EN), host->base + MCI_DLL_CONFIG);
+
+	wait_cnt = 50;
+	/* Wait until DLL_LOCK bit of MCI_DLL_STATUS register becomes '1' */
+	while (!(readl_relaxed(host->base + MCI_DLL_STATUS) & MCI_DLL_LOCK)) {
+		/* max. wait for 50us sec for LOCK bit to be set */
+		if (--wait_cnt == 0) {
+			pr_err("%s: %s: DLL failed to LOCK\n",
+				mmc_hostname(host->mmc), __func__);
+			rc = -ETIMEDOUT;
+			goto out;
+		}
+		/* wait for 1us before polling again */
+		udelay(1);
+	}
+
+out:
+	/* re-enable PWRSAVE */
+	writel_relaxed((readl_relaxed(host->base + MMCICLOCK) |
+			MCI_CLK_PWRSAVE), host->base + MMCICLOCK);
+	spin_unlock_irqrestore(&host->lock, flags);
+
+	return rc;
+}
+
+static inline int msmsdcc_dll_poll_ck_out_en(struct msmsdcc_host *host,
+						u8 poll)
+{
+	int rc = 0;
+	u32 wait_cnt = 50;
+	u8 ck_out_en = 0;
+
+	/* poll for MCI_CK_OUT_EN bit.  max. poll time = 50us */
+	ck_out_en = !!(readl_relaxed(host->base + MCI_DLL_CONFIG) &
+			MCI_CK_OUT_EN);
+
+	while (ck_out_en != poll) {
+		if (--wait_cnt == 0) {
+			pr_err("%s: %s: CK_OUT_EN bit is not %d\n",
+				mmc_hostname(host->mmc), __func__, poll);
+			rc = -ETIMEDOUT;
+			goto out;
+		}
+		udelay(1);
+
+		ck_out_en = !!(readl_relaxed(host->base + MCI_DLL_CONFIG) &
+			MCI_CK_OUT_EN);
+	}
+out:
+	return rc;
+}
+
+/*
+ * Enable a CDR circuit in CM_SDC4_DLL block to enable automatic
+ * calibration sequence. This function should be called before
+ * enabling AUTO_CMD19 bit in MCI_CMD register for block read
+ * commands (CMD17/CMD18).
+ *
+ * This function gets called when host spinlock acquired.
+ */
+static int msmsdcc_enable_cdr_cm_sdc4_dll(struct msmsdcc_host *host)
+{
+	int rc = 0;
+	u32 config;
+
+	config = readl_relaxed(host->base + MCI_DLL_CONFIG);
+	config |= MCI_CDR_EN;
+	config &= ~(MCI_CDR_EXT_EN | MCI_CK_OUT_EN);
+	writel_relaxed(config, host->base + MCI_DLL_CONFIG);
+
+	/* Wait until CK_OUT_EN bit of MCI_DLL_CONFIG register becomes '0' */
+	rc = msmsdcc_dll_poll_ck_out_en(host, 0);
+	if (rc)
+		goto err_out;
+
+	/* Set CK_OUT_EN bit of MCI_DLL_CONFIG register to 1. */
+	writel_relaxed((readl_relaxed(host->base + MCI_DLL_CONFIG)
+			| MCI_CK_OUT_EN), host->base + MCI_DLL_CONFIG);
+
+	/* Wait until CK_OUT_EN bit of MCI_DLL_CONFIG register becomes '1' */
+	rc = msmsdcc_dll_poll_ck_out_en(host, 1);
+	if (rc)
+		goto err_out;
+
+	goto out;
+
+err_out:
+	pr_err("%s: %s: Failed\n", mmc_hostname(host->mmc), __func__);
+out:
+	return rc;
+}
+
+static int msmsdcc_config_cm_sdc4_dll_phase(struct msmsdcc_host *host,
+						u8 phase)
+{
+	int rc = 0;
+	u8 grey_coded_phase_table[] = {0x0, 0x1, 0x3, 0x2, 0x6, 0x7, 0x5, 0x4,
+					0xC, 0xD, 0xF, 0xE, 0xA, 0xB, 0x9,
+					0x8};
+	unsigned long flags;
+	u32 config;
+
+	spin_lock_irqsave(&host->lock, flags);
+
+	config = readl_relaxed(host->base + MCI_DLL_CONFIG);
+	config &= ~(MCI_CDR_EN | MCI_CK_OUT_EN);
+	config |= (MCI_CDR_EXT_EN | MCI_DLL_EN);
+	writel_relaxed(config, host->base + MCI_DLL_CONFIG);
+
+	/* Wait until CK_OUT_EN bit of MCI_DLL_CONFIG register becomes '0' */
+	rc = msmsdcc_dll_poll_ck_out_en(host, 0);
+	if (rc)
+		goto err_out;
+
+	/*
+	 * Write the selected DLL clock output phase (0 ... 15)
+	 * to CDR_SELEXT bit field of MCI_DLL_CONFIG register.
+	 */
+	writel_relaxed(((readl_relaxed(host->base + MCI_DLL_CONFIG)
+			& ~(0xF << 20))
+			| (grey_coded_phase_table[phase] << 20)),
+			host->base + MCI_DLL_CONFIG);
+
+	/* Set CK_OUT_EN bit of MCI_DLL_CONFIG register to 1. */
+	writel_relaxed((readl_relaxed(host->base + MCI_DLL_CONFIG)
+			| MCI_CK_OUT_EN), host->base + MCI_DLL_CONFIG);
+
+	/* Wait until CK_OUT_EN bit of MCI_DLL_CONFIG register becomes '1' */
+	rc = msmsdcc_dll_poll_ck_out_en(host, 1);
+	if (rc)
+		goto err_out;
+
+	config = readl_relaxed(host->base + MCI_DLL_CONFIG);
+	config |= MCI_CDR_EN;
+	config &= ~MCI_CDR_EXT_EN;
+	writel_relaxed(config, host->base + MCI_DLL_CONFIG);
+	goto out;
+
+err_out:
+	pr_err("%s: %s: Failed to set DLL phase: %d\n",
+		mmc_hostname(host->mmc), __func__, phase);
+out:
+	spin_unlock_irqrestore(&host->lock, flags);
+	return rc;
+}
+
+/*
+ * Find out the greatest range of consecuitive selected
+ * DLL clock output phases that can be used as sampling
+ * setting for SD3.0 UHS-I card read operation (in SDR104
+ * timing mode) or for eMMC4.5 card read operation (in HS200
+ * timing mode).
+ * Select the 3/4 of the range and configure the DLL with the
+ * selected DLL clock output phase.
+*/
+static u8 find_most_appropriate_phase(struct msmsdcc_host *host,
+				u8 *phase_table, u8 total_phases)
+{
+	u8 ret, ranges[16][16] = { {0}, {0} };
+	u8 phases_per_row[16] = {0};
+	int row_index = 0, col_index = 0, selected_row_index = 0, curr_max = 0;
+	int i, cnt, phase_0_raw_index = 0, phase_15_raw_index = 0;
+	bool phase_0_found = false, phase_15_found = false;
+
+	for (cnt = 0; cnt < total_phases; cnt++) {
+		ranges[row_index][col_index] = phase_table[cnt];
+		phases_per_row[row_index] += 1;
+		col_index++;
+
+		if ((cnt + 1) == total_phases) {
+			continue;
+		/* check if next phase in phase_table is consecutive or not */
+		} else if ((phase_table[cnt] + 1) != phase_table[cnt + 1]) {
+			row_index++;
+			col_index = 0;
+		}
+	}
+
+	/* Check if phase-0 is present in first valid window? */
+	if (!ranges[0][0]) {
+		phase_0_found = true;
+		phase_0_raw_index = 0;
+		/* Check if cycle exist between 2 valid windows */
+		for (cnt = 1; cnt <= row_index; cnt++) {
+			if (phases_per_row[cnt]) {
+				for (i = 0; i <= phases_per_row[cnt]; i++) {
+					if (ranges[cnt][i] == 15) {
+						phase_15_found = true;
+						phase_15_raw_index = cnt;
+						break;
+					}
+				}
+			}
+		}
+	}
+
+	/* If 2 valid windows form cycle then merge them as single window */
+	if (phase_0_found && phase_15_found) {
+		/* number of phases in raw where phase 0 is present */
+		u8 phases_0 = phases_per_row[phase_0_raw_index];
+		/* number of phases in raw where phase 15 is present */
+		u8 phases_15 = phases_per_row[phase_15_raw_index];
+
+		cnt = 0;
+		for (i = phases_15; i < (phases_15 + phases_0); i++) {
+			ranges[phase_15_raw_index][i] =
+				ranges[phase_0_raw_index][cnt];
+			cnt++;
+		}
+		phases_per_row[phase_0_raw_index] = 0;
+		phases_per_row[phase_15_raw_index] = phases_15 + phases_0;
+	}
+
+	for (cnt = 0; cnt <= row_index; cnt++) {
+		if (phases_per_row[cnt] > curr_max) {
+			curr_max = phases_per_row[cnt];
+			selected_row_index = cnt;
+		}
+	}
+
+	i = ((curr_max * 3) / 4) - 1;
+	ret = ranges[selected_row_index][i];
+
+	return ret;
+}
+
+static int msmsdcc_execute_tuning(struct mmc_host *mmc)
+{
+	int rc = 0;
+	struct msmsdcc_host *host = mmc_priv(mmc);
+	unsigned long	flags;
+	u8 phase, *data_buf, tuned_phases[16], tuned_phase_cnt = 0;
+
+	pr_debug("%s: Enter %s\n", mmc_hostname(mmc), __func__);
+
+	/* Tuning is only required for SDR104 modes */
+	if (!host->tuning_needed) {
+		rc = 0;
+		goto exit;
+	}
+
+	spin_lock_irqsave(&host->lock, flags);
+	WARN(!host->pwr, "SDCC power is turned off\n");
+	WARN(!host->clks_on, "SDCC clocks are turned off\n");
+	WARN(host->sdcc_irq_disabled, "SDCC IRQ is disabled\n");
+
+	host->cmd19_tuning_in_progress = 1;
 	msmsdcc_delay(host);
+	spin_unlock_irqrestore(&host->lock, flags);
+
 	/* first of all reset the tuning block */
 	rc = msmsdcc_init_cm_sdc4_dll(host);
 	if (rc)
@@ -2900,38 +3126,40 @@ static int msmsdcc_execute_tuning(struct mmc_host *mmc)
 			!memcmp(data_buf, cmd19_tuning_block, 64)) {
 			/* tuning is successful with this tuning point */
 			tuned_phases[tuned_phase_cnt++] = phase;
+			pr_debug("%s: %s: found good phase = %d\n",
+				mmc_hostname(mmc), __func__, phase);
 		}
 	} while (++phase < 16);
 
-	kfree(data_buf);
-
 	if (tuned_phase_cnt) {
-		tuned_phase_cnt--;
-		tuned_phase_cnt = (tuned_phase_cnt * 3) / 4;
-		phase = tuned_phases[tuned_phase_cnt];
+		phase = find_most_appropriate_phase(host, tuned_phases,
+							tuned_phase_cnt);
 		/*
 		 * Finally set the selected phase in delay
 		 * line hw block.
 		 */
 		rc = msmsdcc_config_cm_sdc4_dll_phase(host, phase);
 		if (rc)
-			goto out;
+			goto kfree;
+		pr_debug("%s: %s: finally setting the tuning phase to %d\n",
+				mmc_hostname(mmc), __func__, phase);
 	} else {
 		/* tuning failed */
-		rc = -EAGAIN;
-		pr_err("%s: %s: no tuning point found",
+		pr_err("%s: %s: no tuning point found\n",
 			mmc_hostname(mmc), __func__);
+		msmsdcc_dump_sdcc_state(host);
+		rc = -EAGAIN;
 	}
-	goto out;
 
 kfree:
 	kfree(data_buf);
 out:
-	/* re-enable PWESAVE */
-	writel_relaxed((readl_relaxed(host->base + MMCICLOCK) |
-			MCI_CLK_PWRSAVE), host->base + MMCICLOCK);
+	spin_lock_irqsave(&host->lock, flags);
 	msmsdcc_delay(host);
 	host->cmd19_tuning_in_progress = 0;
+	spin_unlock_irqrestore(&host->lock, flags);
+exit:
+	pr_debug("%s: Exit %s\n", mmc_hostname(mmc), __func__);
 	return rc;
 }
 
@@ -2960,18 +3188,32 @@ msmsdcc_slot_status(struct msmsdcc_host *host)
 			mmc_hostname(host->mmc), __func__, gpio_no);
 	} else {
 		status = gpio_direction_input(gpio_no);
-		if (!status)
-			status = !gpio_get_value_cansleep(gpio_no);
+		if (!status) {
+			status = gpio_get_value_cansleep(gpio_no);
+			if (host->plat->is_status_gpio_active_low)
+				status = !status;
+		}
 		gpio_free(gpio_no);
 	}
 	return status;
 }
+
+/* < DTS2012021003618 chendeng 20120303 begin */
+#ifdef CONFIG_HUAWEI_KERNEL
+static unsigned long msmsdcc_irqtime = 0;
+#endif
+/* DTS2012021003618 chendeng 20120303 end > */
 
 static void
 msmsdcc_check_status(unsigned long data)
 {
 	struct msmsdcc_host *host = (struct msmsdcc_host *)data;
 	unsigned int status;
+    /* < DTS2012021003618 chendeng 20120303 begin */
+#ifdef CONFIG_HUAWEI_KERNEL
+    unsigned long duration;
+#endif
+    /* DTS2012021003618 chendeng 20120303 end > */
 
 	if (host->plat->status || host->plat->status_gpio) {
 		if (host->plat->status)
@@ -2980,10 +3222,53 @@ msmsdcc_check_status(unsigned long data)
 			status = msmsdcc_slot_status(host);
 
 		host->eject = !status;
+
 		if (status ^ host->oldstat) {
-			pr_info("%s: Slot status change detected (%d -> %d)\n",
-			       mmc_hostname(host->mmc), host->oldstat, status);
-			mmc_detect_change(host->mmc, 0);
+			if (host->plat->status)
+				pr_info("%s: Slot status change detected "
+					"(%d -> %d)\n",
+					mmc_hostname(host->mmc),
+					host->oldstat, status);
+			else if (host->plat->is_status_gpio_active_low)
+				pr_info("%s: Slot status change detected "
+					"(%d -> %d) and the card detect GPIO"
+					" is ACTIVE_LOW\n",
+					mmc_hostname(host->mmc),
+					host->oldstat, status);
+			else
+				pr_info("%s: Slot status change detected "
+					"(%d -> %d) and the card detect GPIO"
+					" is ACTIVE_HIGH\n",
+					mmc_hostname(host->mmc),
+					host->oldstat, status);
+			
+			/* < DTS2012021003618 chendeng 20120303 begin */
+#ifdef CONFIG_HUAWEI_KERNEL
+            duration = jiffies - msmsdcc_irqtime;
+            /* current msmsdcc is present, add to handle dithering */
+            if (status)
+            {
+                /* the distance of two interrupts can not less than 7 second */
+                if (duration < (7 * HZ))
+                {
+                    duration = (7 * HZ) - duration;
+                }
+                else
+                {
+                    /* 100 millisecond */
+                    duration = 10;
+                }
+            } 
+            else
+            {
+                duration = 0;
+            }
+            mmc_detect_change(host->mmc, duration);
+            msmsdcc_irqtime = jiffies;
+#else
+            mmc_detect_change(host->mmc, 0);
+#endif
+		    /* DTS2012021003618 chendeng 20120303 end > */
 		}
 		host->oldstat = status;
 	} else {
@@ -3482,13 +3767,22 @@ set_polling(struct device *dev, struct device_attribute *attr,
 	spin_lock_irqsave(&host->lock, flags);
 	if (value) {
 		mmc->caps |= MMC_CAP_NEEDS_POLL;
+/* < DTS2010111804286  hanshirong 20101118 begin */
 #ifdef CONFIG_HUAWEI_WIFI_SDCC
+/*< DTS2012041800928 yuanmingming 20120418 begin */
 		if (host->pdev_id == SDCC_WIFI_SLOT) {
-			printk("%s : no need to enable polling for slot %d (as host->pdev_id) \n", __FUNCTION__ , \
+			if(WIFI_BROADCOM == get_hw_wifi_device_type())
+            {
+/* < DTS2011041800861 xuke 20110418 begin */
+				printk("%s : no need to enable polling for slot %d (as host->pdev_id) \n", __FUNCTION__ , \
 							host->pdev_id );
-			mmc->caps &= ~MMC_CAP_NEEDS_POLL;
+/* DTS2011041800861 xuke 20110418 end > */
+				mmc->caps &= ~MMC_CAP_NEEDS_POLL;
 	        }
+        }
+/* DTS2012041800928  yuanmingming 20120418 end > */
 #endif
+/* DTS2010111804286  hanshirong 20101118 end > */
 		mmc_detect_change(host->mmc, 0);
 	} else {
 		mmc->caps &= ~MMC_CAP_NEEDS_POLL;
@@ -3521,6 +3815,26 @@ static void msmsdcc_early_suspend(struct early_suspend *h)
 	host->polling_enabled = host->mmc->caps & MMC_CAP_NEEDS_POLL;
 	host->mmc->caps &= ~MMC_CAP_NEEDS_POLL;
 	spin_unlock_irqrestore(&host->lock, flags);
+    /* < DTS2012011302816  hujun 20120113 begin */
+    /*we delete scan sdcard work which will run 20s later and force it runs now*/
+#ifdef CONFIG_HUAWEI_KERNEL    
+    if (SDCC_SDCARD_SLOT == host->pdev_id )
+    {
+        if( (machine_is_msm8255_c8860())
+            || (machine_is_msm8255_u8860())
+            || (machine_is_msm8255_u8860_92())
+            /* < DTS2012022905490 ganfan 20120301 begin */
+            || machine_is_msm8255_u8860_r()
+            /* DTS2012022905490 ganfan 20120301 end > */
+            || (machine_is_msm8255_u8860lp()))
+        {
+            printk("%s :  cancel_delayed_work_sync \n", __FUNCTION__ );
+            cancel_delayed_work_sync(&host->mmc->detect);
+            mmc_schedule_delayed_work(&host->mmc->detect, 0);
+        }
+    }
+#endif
+    /* DTS2012011302816  hujun 20120113 end > */    
 };
 static void msmsdcc_late_resume(struct early_suspend *h)
 {
@@ -3990,6 +4304,11 @@ msmsdcc_probe(struct platform_device *pdev)
 	/* Apply Hard reset to SDCC to put it in power on default state */
 	msmsdcc_hard_reset(host);
 
+	/* pm qos request to prevent apps idle power collapse */
+	if (host->plat->swfi_latency)
+		pm_qos_add_request(&host->pm_qos_req_dma,
+			PM_QOS_CPU_DMA_LATENCY, PM_QOS_DEFAULT_VALUE);
+
 	ret = msmsdcc_vreg_init(host, true);
 	if (ret) {
 		pr_err("%s: msmsdcc_vreg_init() failed (%d)\n", __func__, ret);
@@ -4048,12 +4367,20 @@ msmsdcc_probe(struct platform_device *pdev)
 #ifdef CONFIG_MMC_MSM_SDIO_SUPPORT
 	mmc->caps |= MMC_CAP_SDIO_IRQ;
 #endif
+/* < BU5D09338 durui 20100506 begin*/
 #ifdef CONFIG_HUAWEI_KERNEL
     if (4 == host->pdev_id )
 	{
         mmc->caps |= MMC_CAP_NEEDS_POLL;
+
+        /*<	DTS2010091001367 genghua 20100910 begin	
+         * we delete some lines here because we move the configuration for 
+         * our SD card slot power supply to the Modem side 
+         * according to a suggestion from QualComm
+         * DTS2010091001367 genghua 20100910 end >*/	  
     }
 #endif
+/* BU5D09338 durui 20100506 end > */
 	if (plat->is_sdio_al_client)
 		mmc->pm_flags |= MMC_PM_IGNORE_PM_NOTIFY;
 
@@ -4102,8 +4429,10 @@ msmsdcc_probe(struct platform_device *pdev)
 		if (ret) {
 			pr_err("Unable to get sdio wakeup IRQ %d (%d)\n",
 				plat->sdiowakeup_irq, ret);
+/*<	DTS2010121801954 liyuping 20101218 begin */
 //if error occur, wake lock should be released 
         	wake_lock_destroy(&host->sdio_wlock);
+/*  DTS2010121801954 liyuping 20101218 end  >*/
 			goto pio_irq_free;
 		} else {
 			spin_lock_irqsave(&host->lock, flags);
@@ -4131,6 +4460,7 @@ msmsdcc_probe(struct platform_device *pdev)
 			host->oldstat = plat->status(mmc_dev(host->mmc));
 		else
 			host->oldstat = msmsdcc_slot_status(host);
+
 		host->eject = !host->oldstat;
 	}
 
@@ -4179,8 +4509,30 @@ msmsdcc_probe(struct platform_device *pdev)
 	 * for every claim/release operation on a host. We use this
 	 * notification to increment/decrement runtime pm usage count.
 	 */
-	mmc->caps |= MMC_CAP_DISABLE;
-	pm_runtime_enable(&(pdev)->dev);
+	 
+	/* < DTS2012042302547 chendeng 20120428 begin */
+#ifdef CONFIG_HUAWEI_KERNEL
+#ifdef CONFIG_ARCH_MSM7X27A
+	/*
+	 * Don't disable the vdd of sd card. The sd card use sdcc1.
+	 * To fix the sd card resume fail issue.
+	 */
+    if (SDCC_SDCARD_SLOT != host->pdev_id)
+    {
+        mmc->caps |= MMC_CAP_DISABLE;
+        pm_runtime_enable(&(pdev)->dev);
+	}
+#else
+    mmc->caps |= MMC_CAP_DISABLE;
+    pm_runtime_enable(&(pdev)->dev);
+#endif
+
+#else
+    mmc->caps |= MMC_CAP_DISABLE;
+    pm_runtime_enable(&(pdev)->dev);
+#endif
+	/* DTS2012042302547 chendeng 20120428 end > */
+
 #else
 	if (mmc->caps & MMC_CAP_NONREMOVABLE) {
 		mmc->caps |= MMC_CAP_DISABLE;
@@ -4193,12 +4545,19 @@ msmsdcc_probe(struct platform_device *pdev)
 	setup_timer(&host->req_tout_timer, msmsdcc_req_tout_timer_hdlr,
 			(unsigned long)host);
 
+/* < DTS2011030904951 xuke 20110325 begin */
 /* ignore pm notify while system resume */
-#ifdef CONFIG_HUAWEI_KERNEL
+/*< DTS2012041800928 yuanmingming 20120418 begin */
+#ifdef CONFIG_HUAWEI_WIFI_SDCC
 	if( SDCC_WIFI_SLOT == host->pdev_id ) {
-		mmc->pm_flags |= MMC_PM_IGNORE_PM_NOTIFY;
+        if(WIFI_BROADCOM == get_hw_wifi_device_type())
+        {
+			mmc->pm_flags |= MMC_PM_IGNORE_PM_NOTIFY;
+        }
 	}
 #endif
+/* DTS2012041800928  yuanmingming 20120418 end > */
+/* DTS2011030904951 xuke 20110325 end > */	
 
 	mmc_add_host(mmc);
 
@@ -4280,6 +4639,8 @@ msmsdcc_probe(struct platform_device *pdev)
 	msmsdcc_vreg_init(host, false);
  clk_disable:
 	clk_disable(host->clk);
+	if (host->plat->swfi_latency)
+		pm_qos_remove_request(&host->pm_qos_req_dma);
  clk_put:
 	clk_put(host->clk);
  pclk_disable:
@@ -4351,6 +4712,9 @@ static int msmsdcc_remove(struct platform_device *pdev)
 		clk_put(host->pclk);
 	if (!IS_ERR_OR_NULL(host->dfab_pclk))
 		clk_put(host->dfab_pclk);
+
+	if (host->plat->swfi_latency)
+		pm_qos_remove_request(&host->pm_qos_req_dma);
 
 	msmsdcc_vreg_init(host, false);
 
@@ -4461,10 +4825,22 @@ msmsdcc_runtime_suspend(struct device *dev)
 
 	if (host->plat->is_sdio_al_client)
 		return 0;
-
 	pr_debug("%s: %s: start\n", mmc_hostname(mmc), __func__);
 	if (mmc) {
+/*< DTS2012041800928 yuanmingming 20120418 begin */
+#ifdef CONFIG_HUAWEI_WIFI_SDCC
+	    if ((host->pdev_id==SDCC_WIFI_SLOT) && WIFI_QUALCOMM==get_hw_wifi_device_type())
+	    {
+		    host->sdcc_suspending = 0;
+    	}
+        else
+        {
+            host->sdcc_suspending = 1;
+	    }
+#else
 		host->sdcc_suspending = 1;
+#endif
+/* DTS2012041800928  yuanmingming 20120418 end > */
 		mmc->suspend_task = current;
 
 		/*
@@ -4495,20 +4871,45 @@ msmsdcc_runtime_suspend(struct device *dev)
 		 * the host so that any resume requests after this will
 		 * simple become pm usage counter increment operations.
 		 */
+/* < DTS2012030400382 zhuwenying 20120315 begin */
+/* < DTS2012011902218 zhuwenying 20120119 begin */
 /* roll back xuke modification */
 		pm_runtime_get_noresume(dev);
-#ifdef CONFIG_HUAWEI_KERNEL
-             if (host->pdev_id != SDCC_WIFI_SLOT){
-                rc = mmc_suspend_host(mmc);
-            }else  if(host->clks_on) {    /*if it is the wifi slot , we need to close the clock in order to save power*/
-                clk_disable(host->clk);    
-                clk_disable(host->pclk);    
-                host->clks_on = 0;   
-            }
+/*< DTS2012041800928 yuanmingming 20120418 begin */
+#ifdef CONFIG_HUAWEI_WIFI_SDCC
+		/* If there is pending detect work abort runtime suspend */
+		if ((host->pdev_id==SDCC_WIFI_SLOT) && WIFI_BROADCOM==get_hw_wifi_device_type()){
+/* DTS2012041800928  yuanmingming 20120418 end > */
+			/* If there is pending detect work abort runtime suspend */
+			if (unlikely(work_busy(&mmc->detect.work))) {
+				printk("sdcc debug :work_busy!!\n");
+				rc = -EAGAIN;
+			}
+			else {
+				if(host->clks_on) {    /*if it is the wifi slot , we need to close the clock in order to save power*/
+					printk("sdcc debug :WIFI slot clock off!!\n");
+					clk_disable(host->clk);    
+					clk_disable(host->pclk);    
+					host->clks_on = 0;   
+				}
+			}                
+		} else {
+			/* If there is pending detect work abort runtime suspend */
+			if (unlikely(work_busy(&mmc->detect.work)))
+				rc = -EAGAIN;
+			else
+				rc = mmc_suspend_host(mmc);  
+		}
 #else
-            rc = mmc_suspend_host(mmc);  
+		/* If there is pending detect work abort runtime suspend */
+		if (unlikely(work_busy(&mmc->detect.work)))
+			rc = -EAGAIN;
+		else
+			rc = mmc_suspend_host(mmc);  
 #endif
 		pm_runtime_put_noidle(dev);
+/* DTS2012011902218 zhuwenying 20120119 end > */
+/* DTS2012030400382 zhuwenying 20120315 end > */
 
 		if (!rc) {
 			if (mmc->card && (mmc->card->type == MMC_TYPE_SDIO) &&
@@ -4538,7 +4939,7 @@ msmsdcc_runtime_suspend(struct device *dev)
 		if (rc && wake_lock_active(&host->sdio_suspend_wlock))
 			wake_unlock(&host->sdio_suspend_wlock);
 	}
-	pr_debug("%s: %s: end\n", mmc_hostname(mmc), __func__);
+	pr_debug("%s: %s: ends with err=%d\n", mmc_hostname(mmc), __func__, rc);
 	return rc;
 }
 
@@ -4579,19 +4980,25 @@ msmsdcc_runtime_resume(struct device *dev)
 
 			spin_unlock_irqrestore(&host->lock, flags);
 		}
+/* < DTS2012030400382 zhuwenying 20120315 begin */
+/* < DTS2012011902218 zhuwenying 20120119 begin */
 /* roll back xuke modification */
-#ifdef CONFIG_HUAWEI_KERNEL
-                if (host->pdev_id != SDCC_WIFI_SLOT){
-                   mmc_resume_host(mmc);
-               }
-               else if(!host->clks_on) {           /*if it is the wifi slot , we need to open the clock closed when suspend*/                     
-                   clk_enable(host->pclk);                                
-                   clk_enable(host->clk);                                
-                   host->clks_on = 1;                        
-               }
+/*< DTS2012041800928 yuanmingming 20120418 begin */
+#ifdef CONFIG_HUAWEI_WIFI_SDCC
+		if ((host->pdev_id==SDCC_WIFI_SLOT) && WIFI_BROADCOM==get_hw_wifi_device_type()){
+/* DTS2012041800928  yuanmingming 20120418 end > */
+			if(host->clks_on) {   /*if it is the wifi slot ,check clock on at mmc->ops->set_ios() */               
+				printk("sdcc debug :WIFI slot clock on!!\n");
+			}
+		}
+		else {      
+			mmc_resume_host(mmc);
+		}
 #else
-               mmc_resume_host(mmc);
+		mmc_resume_host(mmc);
 #endif
+/* DTS2012011902218 zhuwenying 20120119 end > */
+/* DTS2012011902218 zhuwenying 20120119 end > */
 		/*
 		 * FIXME: Clearing of flags must be handled in clients
 		 * resume handler.
@@ -4744,7 +5151,7 @@ msmsdcc_dbg_state_read(struct file *file, char __user *ubuf,
 		       size_t count, loff_t *ppos)
 {
 	struct msmsdcc_host *host = (struct msmsdcc_host *) file->private_data;
-	char buf[1024];
+	char buf[200];
 	int max, i;
 
 	i = 0;

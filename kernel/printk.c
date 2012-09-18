@@ -41,7 +41,7 @@
 #include <linux/cpu.h>
 #include <linux/notifier.h>
 #include <linux/rculist.h>
-
+#include <mach/msm_rtb.h>
 #include <asm/uaccess.h>
 
 /*
@@ -784,6 +784,11 @@ asmlinkage int printk(const char *fmt, ...)
 {
 	va_list args;
 	int r;
+#ifdef CONFIG_MSM_RTB
+	void *caller = __builtin_return_address(0);
+
+	uncached_logk_pc(LOGK_LOGBUF, caller, (void *)log_end);
+#endif
 
 #ifdef CONFIG_KGDB_KDB
 	if (unlikely(kdb_trap_printk)) {
@@ -813,11 +818,6 @@ static volatile unsigned int printk_cpu = UINT_MAX;
  */
 static inline int can_use_console(unsigned int cpu)
 {
-#ifdef CONFIG_HOTPLUG_CPU
-	if (!cpu_active(cpu) && cpu_hotplug_inprogress())
-		return 0;
-#endif
-
 	return cpu_online(cpu) || have_callable_console();
 }
 
@@ -978,11 +978,15 @@ asmlinkage int vprintk(const char *fmt, va_list args)
 
 				t = cpu_clock(printk_cpu);
 				nanosec_rem = do_div(t, 1000000000);
+                /* <DTS2010071902568 hufeng 20100719 begin */
+				/*<BU5D06612 qinwei 20100330 begin */
 #ifndef CONFIG_HUAWEI_KERNEL
 				tlen = sprintf(tbuf, "[%5lu.%06lu] ",
 #else
 				tlen = sprintf(tbuf, "[%d, %s] [%5lu.%06lu] ", current->pid, current->comm,
 #endif
+				/*BU5D06612 qinwei 20100330 end >*/
+                /* DTS2010071902568 hufeng 20100719 end> */
 						(unsigned long) t,
 						nanosec_rem / 1000);
 

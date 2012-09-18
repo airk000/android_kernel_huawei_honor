@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2010-2012, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -36,8 +36,6 @@
 
 static int first_pixel_start_x;
 static int first_pixel_start_y;
-
-static int writeback_offset;
 
 static struct mdp4_overlay_pipe *dsi_pipe;
 static struct completion dsi_video_comp;
@@ -141,14 +139,9 @@ int mdp4_dsi_video_on(struct platform_device *pdev)
 		dsi_pipe = pipe; /* keep it */
 		init_completion(&dsi_video_comp);
 
-		writeback_offset = mdp4_writeback_offset();
+		mdp4_init_writeback_buf(mfd, MDP4_MIXER0);
+		pipe->blt_addr = 0;
 
-		if (writeback_offset > 0) {
-			pipe->blt_base = (ulong)fbi->fix.smem_start;
-			pipe->blt_base += writeback_offset;
-		} else {
-			pipe->blt_base  = 0;
-		}
 	} else {
 		pipe = dsi_pipe;
 	}
@@ -472,13 +465,6 @@ static void mdp4_overlay_dsi_video_dma_busy_wait(struct msm_fb_data_type *mfd)
 	pr_debug("%s: done pid=%d\n", __func__, current->pid);
 }
 
-void mdp4_overlay_dsi_video_set_perf(struct msm_fb_data_type *mfd)
-{
-	mdp4_overlay_dsi_video_wait4event(mfd, INTR_DMA_P_DONE);
-	/* change mdp clk while mdp is idle */
-	mdp4_set_perf_level();
-}
-
 void mdp4_overlay_dsi_video_vsync_push(struct msm_fb_data_type *mfd,
 			struct mdp4_overlay_pipe *pipe)
 {
@@ -506,9 +492,10 @@ void mdp4_overlay_dsi_video_vsync_push(struct msm_fb_data_type *mfd,
 		mb();
 		mdp4_overlay_dsi_video_wait4event(mfd, INTR_DMA_P_DONE);
 	} else {
-
 		mdp4_overlay_dsi_video_wait4event(mfd, INTR_PRIMARY_VSYNC);
 	}
+
+	mdp4_set_perf_level();
 }
 
 /*
@@ -579,14 +566,16 @@ static void mdp4_dsi_video_do_blt(struct msm_fb_data_type *mfd, int enable)
 	int data;
 	int change = 0;
 
-	if (dsi_pipe->blt_base == 0) {
+	mdp4_allocate_writeback_buf(mfd, MDP4_MIXER0);
+
+	if (mfd->ov0_wb_buf->phys_addr == 0) {
 		pr_info("%s: no blt_base assigned\n", __func__);
 		return;
 	}
 
 	spin_lock_irqsave(&mdp_spin_lock, flag);
 	if (enable && dsi_pipe->blt_addr == 0) {
-		dsi_pipe->blt_addr = dsi_pipe->blt_base;
+		dsi_pipe->blt_addr = mfd->ov0_wb_buf->phys_addr;
 		dsi_pipe->blt_cnt = 0;
 		dsi_pipe->ov_cnt = 0;
 		dsi_pipe->dmap_cnt = 0;
@@ -596,7 +585,7 @@ static void mdp4_dsi_video_do_blt(struct msm_fb_data_type *mfd, int enable)
 		dsi_pipe->blt_addr = 0;
 		change++;
 	}
-	pr_info("%s: enable=%d blt_addr=%x\n", __func__,
+	pr_debug("%s: enable=%d blt_addr=%x\n", __func__,
 				enable, (int)dsi_pipe->blt_addr);
 	spin_unlock_irqrestore(&mdp_spin_lock, flag);
 
@@ -634,7 +623,7 @@ static void mdp4_dsi_video_do_blt(struct msm_fb_data_type *mfd, int enable)
 int mdp4_dsi_video_overlay_blt_offset(struct msm_fb_data_type *mfd,
 					struct msmfb_overlay_blt *req)
 {
-	req->offset = writeback_offset;
+	req->offset = 0;
 	req->width = dsi_pipe->src_width;
 	req->height = dsi_pipe->src_height;
 	req->bpp = dsi_pipe->bpp;

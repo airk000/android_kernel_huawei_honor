@@ -1,4 +1,4 @@
-/* Copyright (c) 2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -27,6 +27,7 @@
 
 #define TABLA_SLIM_GLA_MAX_RETRIES 5
 #define TABLA_REGISTER_START_OFFSET 0x800
+#define TABLA_SLIM_RW_MAX_TRIES 3
 
 #define MAX_TABLA_DEVICE	4
 #define TABLA_I2C_MODE	0x03
@@ -183,21 +184,25 @@ static int tabla_slim_read_device(struct tabla *tabla, unsigned short reg,
 {
 	int ret;
 	struct slim_ele_access msg;
+	int slim_read_tries = TABLA_SLIM_RW_MAX_TRIES;
 	msg.start_offset = TABLA_REGISTER_START_OFFSET + reg;
 	msg.num_bytes = bytes;
 	msg.comp = NULL;
 
-	mutex_lock(&tabla->xfer_lock);
-	if (interface)
-		ret = slim_request_val_element(tabla->slim_slave, &msg, dest,
-			bytes);
-	else
-		ret = slim_request_val_element(tabla->slim, &msg, dest, bytes);
+	while (1) {
+		mutex_lock(&tabla->xfer_lock);
+		ret = slim_request_val_element(interface ?
+					       tabla->slim_slave : tabla->slim,
+					       &msg, dest, bytes);
+		mutex_unlock(&tabla->xfer_lock);
+		if (likely(ret == 0) || (--slim_read_tries == 0))
+			break;
+		usleep_range(5000, 5000);
+	}
 
 	if (ret)
-		pr_err("%s: Error, Tabla read failed\n", __func__);
+		pr_err("%s: Error, Tabla read failed (%d)\n", __func__, ret);
 
-	mutex_unlock(&tabla->xfer_lock);
 	return ret;
 }
 /* Interface specifies whether the write is to the interface or general
@@ -208,20 +213,25 @@ static int tabla_slim_write_device(struct tabla *tabla, unsigned short reg,
 {
 	int ret;
 	struct slim_ele_access msg;
+	int slim_write_tries = TABLA_SLIM_RW_MAX_TRIES;
 	msg.start_offset = TABLA_REGISTER_START_OFFSET + reg;
 	msg.num_bytes = bytes;
 	msg.comp = NULL;
 
-	mutex_lock(&tabla->xfer_lock);
-	if (interface)
-		ret = slim_change_val_element(tabla->slim_slave, &msg, src,
-			bytes);
-	else
-		ret = slim_change_val_element(tabla->slim, &msg, src, bytes);
-	if (ret)
-		pr_err("%s: Error, Tabla write failed\n", __func__);
+	while (1) {
+		mutex_lock(&tabla->xfer_lock);
+		ret = slim_change_val_element(interface ?
+					      tabla->slim_slave : tabla->slim,
+					      &msg, src, bytes);
+		mutex_unlock(&tabla->xfer_lock);
+		if (likely(ret == 0) || (--slim_write_tries == 0))
+			break;
+		usleep_range(5000, 5000);
+	}
 
-	mutex_unlock(&tabla->xfer_lock);
+	if (ret)
+		pr_err("%s: Error, Tabla write failed (%d)\n", __func__, ret);
+
 	return ret;
 }
 
@@ -360,6 +370,13 @@ static int tabla_device_init(struct tabla *tabla, int irq)
 
 	mutex_init(&tabla->io_lock);
 	mutex_init(&tabla->xfer_lock);
+
+	mutex_init(&tabla->pm_lock);
+	tabla->wlock_holders = 0;
+	tabla->pm_state = TABLA_PM_SLEEPABLE;
+	init_waitqueue_head(&tabla->pm_wq);
+	wake_lock_init(&tabla->wlock, WAKE_LOCK_IDLE, "wcd9310-irq");
+
 	dev_set_drvdata(tabla->dev, tabla);
 
 	tabla_bring_up(tabla);
@@ -378,24 +395,31 @@ static int tabla_device_init(struct tabla *tabla, int irq)
 		goto err_irq;
 	}
 
+	tabla->version = tabla_reg_read(tabla, TABLA_A_CHIP_VERSION) & 0x1F;
+	pr_info("%s : Tabla version %u initialized\n",
+		__func__, tabla->version);
+
 	return ret;
 err_irq:
 	tabla_irq_exit(tabla);
 err:
 	tabla_bring_down(tabla);
+	wake_lock_destroy(&tabla->wlock);
+	mutex_destroy(&tabla->pm_lock);
 	mutex_destroy(&tabla->io_lock);
 	mutex_destroy(&tabla->xfer_lock);
 	return ret;
 }
+
 static void tabla_device_exit(struct tabla *tabla)
 {
 	tabla_irq_exit(tabla);
 	tabla_bring_down(tabla);
 	tabla_free_reset(tabla);
+	mutex_destroy(&tabla->pm_lock);
+	wake_lock_destroy(&tabla->wlock);
 	mutex_destroy(&tabla->io_lock);
 	mutex_destroy(&tabla->xfer_lock);
-	slim_remove_device(tabla->slim_slave);
-	kfree(tabla);
 }
 
 
@@ -693,13 +717,13 @@ int tabla_i2c_read_device(unsigned short reg,
 }
 
 int tabla_i2c_read(struct tabla *tabla, unsigned short reg,
-			int bytes, void *dest, bool interface_reg)
+		   int bytes, void *dest, bool interface_reg)
 {
 	return tabla_i2c_read_device(reg, bytes, dest);
 }
 
 int tabla_i2c_write(struct tabla *tabla, unsigned short reg,
-			 int bytes, void *src, bool interface_reg)
+		    int bytes, void *src, bool interface_reg)
 {
 	return tabla_i2c_write_device(reg, src, bytes);
 }
@@ -785,7 +809,13 @@ fail:
 
 static int __devexit tabla_i2c_remove(struct i2c_client *client)
 {
+	struct tabla *tabla;
+
 	pr_debug("exit\n");
+	tabla = dev_get_drvdata(&client->dev);
+	tabla_device_exit(tabla);
+	tabla_disable_supplies(tabla);
+	kfree(tabla);
 	return 0;
 }
 
@@ -908,7 +938,6 @@ static int tabla_slim_probe(struct slim_device *slim)
 	}
 #endif
 
-
 	return ret;
 
 err_slim_add:
@@ -922,6 +951,7 @@ err_tabla:
 err:
 	return ret;
 }
+
 static int tabla_slim_remove(struct slim_device *pdev)
 {
 	struct tabla *tabla;
@@ -935,14 +965,103 @@ static int tabla_slim_remove(struct slim_device *pdev)
 	tabla = slim_get_devicedata(pdev);
 	tabla_device_exit(tabla);
 	tabla_disable_supplies(tabla);
+	slim_remove_device(tabla->slim_slave);
 	kfree(tabla);
 
 	return 0;
 }
+
+static int tabla_resume(struct tabla *tabla)
+{
+	int ret = 0;
+
+	pr_debug("%s: enter\n", __func__);
+	mutex_lock(&tabla->pm_lock);
+	if (tabla->pm_state == TABLA_PM_ASLEEP) {
+		pr_debug("%s: resuming system, state %d, wlock %d\n", __func__,
+			 tabla->pm_state, tabla->wlock_holders);
+		tabla->pm_state = TABLA_PM_SLEEPABLE;
+	} else {
+		pr_warn("%s: system is already awake, state %d wlock %d\n",
+			__func__, tabla->pm_state, tabla->wlock_holders);
+	}
+	mutex_unlock(&tabla->pm_lock);
+	wake_up_all(&tabla->pm_wq);
+
+	return ret;
+}
+
+static int tabla_slim_resume(struct slim_device *sldev)
+{
+	struct tabla *tabla = slim_get_devicedata(sldev);
+	return tabla_resume(tabla);
+}
+
+static int tabla_i2c_resume(struct i2c_client *i2cdev)
+{
+	struct tabla *tabla = dev_get_drvdata(&i2cdev->dev);
+	return tabla_resume(tabla);
+}
+
+static int tabla_suspend(struct tabla *tabla, pm_message_t pmesg)
+{
+	int ret = 0;
+
+	pr_debug("%s: enter\n", __func__);
+	/* wake_lock() can be called after this suspend chain call started.
+	 * thus suspend can be called while wlock is being held */
+	mutex_lock(&tabla->pm_lock);
+	if (tabla->pm_state == TABLA_PM_SLEEPABLE) {
+		pr_debug("%s: suspending system, state %d, wlock %d\n",
+			 __func__, tabla->pm_state, tabla->wlock_holders);
+		tabla->pm_state = TABLA_PM_ASLEEP;
+	} else if (tabla->pm_state == TABLA_PM_AWAKE) {
+		/* unlock to wait for pm_state == TABLA_PM_SLEEPABLE
+		 * then set to TABLA_PM_ASLEEP */
+		pr_debug("%s: waiting to suspend system, state %d, wlock %d\n",
+			 __func__, tabla->pm_state, tabla->wlock_holders);
+		mutex_unlock(&tabla->pm_lock);
+		if (!(wait_event_timeout(tabla->pm_wq,
+					 tabla_pm_cmpxchg(tabla,
+							  TABLA_PM_SLEEPABLE,
+							  TABLA_PM_ASLEEP) ==
+							     TABLA_PM_SLEEPABLE,
+					 HZ))) {
+			pr_debug("%s: suspend failed state %d, wlock %d\n",
+				 __func__, tabla->pm_state,
+				 tabla->wlock_holders);
+			ret = -EBUSY;
+		} else {
+			pr_debug("%s: done, state %d, wlock %d\n", __func__,
+				 tabla->pm_state, tabla->wlock_holders);
+		}
+		mutex_lock(&tabla->pm_lock);
+	} else if (tabla->pm_state == TABLA_PM_ASLEEP) {
+		pr_warn("%s: system is already suspended, state %d, wlock %dn",
+			__func__, tabla->pm_state, tabla->wlock_holders);
+	}
+	mutex_unlock(&tabla->pm_lock);
+
+	return ret;
+}
+
+static int tabla_slim_suspend(struct slim_device *sldev, pm_message_t pmesg)
+{
+	struct tabla *tabla = slim_get_devicedata(sldev);
+	return tabla_suspend(tabla, pmesg);
+}
+
+static int tabla_i2c_suspend(struct i2c_client *i2cdev, pm_message_t pmesg)
+{
+	struct tabla *tabla = dev_get_drvdata(&i2cdev->dev);
+	return tabla_suspend(tabla, pmesg);
+}
+
 static const struct slim_device_id slimtest_id[] = {
 	{"tabla-slim", 0},
 	{}
 };
+
 static struct slim_driver tabla_slim_driver = {
 	.driver = {
 		.name = "tabla-slim",
@@ -951,6 +1070,8 @@ static struct slim_driver tabla_slim_driver = {
 	.probe = tabla_slim_probe,
 	.remove = tabla_slim_remove,
 	.id_table = slimtest_id,
+	.resume = tabla_slim_resume,
+	.suspend = tabla_slim_suspend,
 };
 
 static const struct slim_device_id slimtest2x_id[] = {
@@ -966,6 +1087,8 @@ static struct slim_driver tabla2x_slim_driver = {
 	.probe = tabla_slim_probe,
 	.remove = tabla_slim_remove,
 	.id_table = slimtest2x_id,
+	.resume = tabla_slim_resume,
+	.suspend = tabla_slim_suspend,
 };
 
 #define TABLA_I2C_TOP_LEVEL 0
@@ -983,13 +1106,15 @@ static struct i2c_device_id tabla_id_table[] = {
 MODULE_DEVICE_TABLE(i2c, tabla_id_table);
 
 static struct i2c_driver tabla_i2c_driver = {
-	.driver                 = {
-		.owner          =       THIS_MODULE,
-		.name           =       "tabla-i2c-core",
+	.driver = {
+		.owner = THIS_MODULE,
+		.name = "tabla-i2c-core",
 	},
-	.id_table               =       tabla_id_table,
-	.probe                  =       tabla_i2c_probe,
-	.remove                 =       __devexit_p(tabla_i2c_remove),
+	.id_table = tabla_id_table,
+	.probe = tabla_i2c_probe,
+	.remove = __devexit_p(tabla_i2c_remove),
+	.resume	= tabla_i2c_resume,
+	.suspend = tabla_i2c_suspend,
 };
 
 static int __init tabla_init(void)

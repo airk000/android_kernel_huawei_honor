@@ -1,4 +1,4 @@
-/* Copyright (c) 2011, Code Aurora Forum. All rights reserved
+/* Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -61,7 +61,7 @@ struct iris_device {
 	__u8 pty;
 	__u8 ps_repeatcount;
 	__u8 prev_trans_rds;
-
+	__u8 af_jump_bit;
 	struct video_device *videodev;
 
 	struct mutex lock;
@@ -97,6 +97,8 @@ struct iris_device {
 	struct hci_fm_riva_poke   riva_data_req;
 	struct hci_fm_ssbi_req    ssbi_data_accs;
 	struct hci_fm_ssbi_peek   ssbi_peek_reg;
+	struct hci_fm_sig_threshold_rsp sig_th;
+	struct hci_fm_ch_det_threshold ch_det_threshold;
 };
 
 static struct video_device *priv_videodev;
@@ -418,6 +420,45 @@ static struct v4l2_queryctrl iris_v4l2_queryctrl[] = {
 	.name	=	"SET Calibration",
 	.minimum	=	0,
 	.maximum	=	1,
+	},
+	{
+	.id     =       V4L2_CID_PRIVATE_IRIS_GET_SINR,
+	.type   =       V4L2_CTRL_TYPE_INTEGER,
+	.name   =       "GET SINR",
+	.minimum        =       -128,
+	.maximum        =       127,
+	},
+	{
+	.id     =       V4L2_CID_PRIVATE_INTF_HIGH_THRESHOLD,
+	.type   =       V4L2_CTRL_TYPE_INTEGER,
+	.name   =       "Intf High Threshold",
+	.minimum        =       0,
+	.maximum        =       0xFF,
+	.default_value  =       0,
+	},
+	{
+	.id     =       V4L2_CID_PRIVATE_INTF_LOW_THRESHOLD,
+	.type   =       V4L2_CTRL_TYPE_INTEGER,
+	.name   =       "Intf low Threshold",
+	.minimum        =       0,
+	.maximum        =       0xFF,
+	.default_value  =       0,
+	},
+	{
+	.id     =       V4L2_CID_PRIVATE_SINR_THRESHOLD,
+	.type   =       V4L2_CTRL_TYPE_INTEGER,
+	.name   =       "SINR Threshold",
+	.minimum        =       -128,
+	.maximum        =       127,
+	.default_value  =       0,
+	},
+	{
+	.id     =       V4L2_CID_PRIVATE_SINR_SAMPLES,
+	.type   =       V4L2_CTRL_TYPE_INTEGER,
+	.name   =       "SINR samples",
+	.minimum        =       1,
+	.maximum        =       0xFF,
+	.default_value  =       0,
 	},
 };
 
@@ -1038,6 +1079,25 @@ static int hci_fm_get_station_dbg_param_req(struct radio_hci_dev *hdev,
 	return radio_hci_send_cmd(hdev, opcode, 0, NULL);
 }
 
+static int hci_fm_set_ch_det_th(struct radio_hci_dev *hdev,
+	unsigned long param)
+{
+	struct hci_fm_ch_det_threshold *ch_det_th =
+			 (struct hci_fm_ch_det_threshold *) param;
+	u16 opcode = hci_opcode_pack(HCI_OGF_FM_RECV_CTRL_CMD_REQ,
+		HCI_OCF_FM_SET_CH_DET_THRESHOLD);
+	return radio_hci_send_cmd(hdev, opcode, sizeof((*ch_det_th)),
+		ch_det_th);
+}
+
+static int hci_fm_get_ch_det_th(struct radio_hci_dev *hdev,
+		unsigned long param)
+{
+	u16 opcode = hci_opcode_pack(HCI_OGF_FM_RECV_CTRL_CMD_REQ,
+			HCI_OCF_FM_GET_CH_DET_THRESHOLD);
+	return radio_hci_send_cmd(hdev, opcode, 0, NULL);
+}
+
 static int radio_hci_err(__u16 code)
 {
 	switch (code) {
@@ -1361,6 +1421,16 @@ static int hci_ssbi_poke_reg(struct hci_fm_ssbi_req *arg,
 	return ret;
 }
 
+static int hci_set_ch_det_thresholds_req(struct hci_fm_ch_det_threshold *arg,
+		struct radio_hci_dev *hdev)
+{
+	int ret = 0;
+	struct hci_fm_ch_det_threshold *ch_det_threshold = arg;
+	ret = radio_hci_request(hdev, hci_fm_set_ch_det_th,
+		 (unsigned long)ch_det_threshold, RADIO_HCI_TIMEOUT);
+	return ret;
+}
+
 static int hci_fm_set_cal_req_proc(struct radio_hci_dev *hdev,
 		unsigned long param)
 {
@@ -1474,6 +1544,10 @@ static int hci_cmd(unsigned int cmd, struct radio_hci_dev *hdev)
 		ret = radio_hci_request(hdev, hci_get_fm_trans_conf_req, arg,
 			msecs_to_jiffies(RADIO_HCI_TIMEOUT));
 		break;
+	case HCI_FM_GET_DET_CH_TH_CMD:
+		ret = radio_hci_request(hdev, hci_fm_get_ch_det_th, arg,
+					msecs_to_jiffies(RADIO_HCI_TIMEOUT));
+		break;
 	default:
 		ret = -EINVAL;
 		break;
@@ -1515,7 +1589,7 @@ static void hci_cc_fm_disable_rsp(struct radio_hci_dev *hdev,
 	if (status)
 		return;
 
-	iris_q_event(radio, IRIS_EVT_RADIO_READY);
+	iris_q_event(radio, IRIS_EVT_RADIO_DISABLED);
 
 	radio_hci_req_complete(hdev, status);
 }
@@ -1580,13 +1654,11 @@ static void hci_cc_sig_threshold_rsp(struct radio_hci_dev *hdev,
 {
 	struct hci_fm_sig_threshold_rsp  *rsp = (void *)skb->data;
 	struct iris_device *radio = video_get_drvdata(video_get_dev());
-	struct v4l2_control *v4l_ctl = radio->g_ctl;
 
 	if (rsp->status)
 		return;
 
-	v4l_ctl->value = rsp->sig_threshold;
-
+	memcpy(&radio->sig_th, rsp, sizeof(struct hci_fm_sig_threshold_rsp));
 	radio_hci_req_complete(hdev, rsp->status);
 }
 
@@ -1780,6 +1852,21 @@ static void hci_cc_do_calibration_rsp(struct radio_hci_dev *hdev,
 
 	radio_hci_req_complete(hdev, rsp.status);
 }
+
+static void hci_cc_get_ch_det_threshold_rsp(struct radio_hci_dev *hdev,
+		struct sk_buff *skb)
+{
+	struct iris_device *radio = video_get_drvdata(video_get_dev());
+	u8  status = skb->data[0];
+	if (status) {
+		FMDERR("status = %d", status);
+		return;
+	}
+	memcpy(&radio->ch_det_threshold, &skb->data[1],
+		sizeof(struct hci_fm_ch_det_threshold));
+	radio_hci_req_complete(hdev, status);
+}
+
 static inline void hci_cmd_complete_event(struct radio_hci_dev *hdev,
 		struct sk_buff *skb)
 {
@@ -1812,6 +1899,7 @@ static inline void hci_cmd_complete_event(struct radio_hci_dev *hdev,
 	case hci_recv_ctrl_cmd_op_pack(HCI_OCF_FM_RDS_GRP_PROCESS):
 	case hci_recv_ctrl_cmd_op_pack(HCI_OCF_FM_EN_WAN_AVD_CTRL):
 	case hci_recv_ctrl_cmd_op_pack(HCI_OCF_FM_EN_NOTCH_CTRL):
+	case hci_recv_ctrl_cmd_op_pack(HCI_OCF_FM_SET_CH_DET_THRESHOLD):
 	case hci_trans_ctrl_cmd_op_pack(HCI_OCF_FM_ENABLE_TRANS_REQ):
 	case hci_trans_ctrl_cmd_op_pack(HCI_OCF_FM_DISABLE_TRANS_REQ):
 	case hci_trans_ctrl_cmd_op_pack(HCI_OCF_FM_RDS_RT_REQ):
@@ -1880,6 +1968,9 @@ static inline void hci_cmd_complete_event(struct radio_hci_dev *hdev,
 	case hci_trans_ctrl_cmd_op_pack(HCI_OCF_FM_GET_TRANS_CONF_REQ):
 		hci_cc_fm_trans_get_conf_rsp(hdev, skb);
 		break;
+	case hci_recv_ctrl_cmd_op_pack(HCI_OCF_FM_GET_CH_DET_THRESHOLD):
+		hci_cc_get_ch_det_threshold_rsp(hdev, skb);
+		break;
 	default:
 		FMDERR("%s opcode 0x%x", hdev->name, opcode);
 		break;
@@ -1908,7 +1999,7 @@ static inline void hci_ev_tune_status(struct radio_hci_dev *hdev,
 		if (i >= IRIS_BUF_RT_RDS)
 			kfifo_reset(&radio->data_buf[i]);
 	}
-	if (radio->fm_st_rsp.station_rsp.rssi)
+	if (radio->fm_st_rsp.station_rsp.serv_avble)
 		iris_q_event(radio, IRIS_EVT_ABOVE_TH);
 	else
 		iris_q_event(radio, IRIS_EVT_BELOW_TH);
@@ -2027,10 +2118,8 @@ static inline void hci_ev_radio_text(struct radio_hci_dev *hdev,
 
 	iris_q_event(radio, IRIS_EVT_NEW_RT_RDS);
 
-	while (skb->data[len+RDS_OFFSET] != 0x0d)
+	while ((skb->data[len+RDS_OFFSET] != 0x0d) && (len < RX_RT_DATA_LENGTH))
 		len++;
-	len++;
-
 	data = kmalloc(len+RDS_OFFSET, GFP_ATOMIC);
 	if (!data) {
 		FMDERR("Failed to allocate memory");
@@ -2081,7 +2170,8 @@ static void hci_ev_service_available(struct radio_hci_dev *hdev,
 	struct sk_buff *skb)
 {
 	struct iris_device *radio = video_get_drvdata(video_get_dev());
-	if (radio->fm_st_rsp.station_rsp.serv_avble)
+	u8 serv_avble = skb->data[0];
+	if (serv_avble)
 		iris_q_event(radio, IRIS_EVT_ABOVE_TH);
 	else
 		iris_q_event(radio, IRIS_EVT_BELOW_TH);
@@ -2222,7 +2312,10 @@ static int set_low_power_mode(struct iris_device *radio, int power_mode)
 
 		if (power_mode) {
 			radio->event_mask = 0x00;
-			rds_grps_proc = 0x00 | AF_JUMP_ENABLE ;
+			if (radio->af_jump_bit)
+				rds_grps_proc = 0x00 | AF_JUMP_ENABLE;
+			else
+				rds_grps_proc = 0x00;
 			retval = hci_fm_rds_grps_process(
 				&rds_grps_proc,
 				radio->fm_hdev);
@@ -2427,6 +2520,11 @@ static int iris_vidioc_g_ctrl(struct file *file, void *priv,
 		break;
 	case V4L2_CID_PRIVATE_IRIS_SIGNAL_TH:
 		retval = hci_cmd(HCI_FM_GET_SIGNAL_TH_CMD, radio->fm_hdev);
+		if (retval < 0) {
+			FMDERR("Error in get signal threshold %d\n", retval);
+			return retval;
+		}
+		ctrl->value = radio->sig_th.sig_threshold;
 		break;
 	case V4L2_CID_PRIVATE_IRIS_SRCH_PTY:
 		ctrl->value = radio->srch_rds.srch_pty;
@@ -2498,6 +2596,52 @@ static int iris_vidioc_g_ctrl(struct file *file, void *priv,
 		break;
 	case V4L2_CID_PRIVATE_IRIS_DO_CALIBRATION:
 		retval = iris_do_calibration(radio);
+		break;
+	case V4L2_CID_PRIVATE_IRIS_GET_SINR:
+		if (radio->mode == FM_RECV) {
+			retval = hci_cmd(HCI_FM_GET_STATION_PARAM_CMD,
+						 radio->fm_hdev);
+			if (retval < 0) {
+				FMDERR("Get SINR Failed");
+				return retval;
+			}
+			ctrl->value = radio->fm_st_rsp.station_rsp.sinr;
+
+		} else
+			retval = -EINVAL;
+
+	case V4L2_CID_PRIVATE_INTF_HIGH_THRESHOLD:
+		retval = hci_cmd(HCI_FM_GET_DET_CH_TH_CMD, radio->fm_hdev);
+		if (retval < 0) {
+			FMDERR("Get High det threshold failed %x", retval);
+			return retval;
+		}
+		ctrl->value = radio->ch_det_threshold.high_th;
+		break;
+	case V4L2_CID_PRIVATE_INTF_LOW_THRESHOLD:
+		retval = hci_cmd(HCI_FM_GET_DET_CH_TH_CMD, radio->fm_hdev);
+		if (retval < 0) {
+			FMDERR("Get Low det threshold failed %x", retval);
+			return retval;
+		}
+		ctrl->value = radio->ch_det_threshold.low_th;
+		break;
+	case V4L2_CID_PRIVATE_SINR_THRESHOLD:
+		retval = hci_cmd(HCI_FM_GET_DET_CH_TH_CMD, radio->fm_hdev);
+		if (retval < 0) {
+			FMDERR("Get SINR threshold failed %x", retval);
+			return retval;
+		}
+		ctrl->value = radio->ch_det_threshold.sinr;
+		break;
+	case V4L2_CID_PRIVATE_SINR_SAMPLES:
+		retval = hci_cmd(HCI_FM_GET_DET_CH_TH_CMD, radio->fm_hdev);
+		if (retval < 0) {
+			FMDERR("Get SINR samples failed %x", retval);
+			return retval;
+		}
+
+		ctrl->value = radio->ch_det_threshold.sinr_samples;
 		break;
 	default:
 		retval = -EINVAL;
@@ -2609,9 +2753,8 @@ static int iris_vidioc_s_ext_ctrls(struct file *file, void *priv,
 				hci_fm_set_cal_req_proc,
 				(unsigned long)&proc_cal_req,
 				 RADIO_HCI_TIMEOUT);
-		if (retval < 0) {
+		if (retval < 0)
 			FMDERR("Set Process calibration failed %d", retval);
-		}
 		break;
 	default:
 		FMDBG("Shouldn't reach here\n");
@@ -2870,6 +3013,10 @@ static int iris_vidioc_s_ctrl(struct file *file, void *priv,
 				radio->fm_hdev);
 		break;
 	case V4L2_CID_PRIVATE_IRIS_AF_JUMP:
+		/*Clear the current AF jump settings*/
+		radio->g_rds_grp_proc_ps &= ~(1 << RDS_AF_JUMP_OFFSET);
+		radio->af_jump_bit = ctrl->value;
+		rds_grps_proc = 0x00;
 		rds_grps_proc = (ctrl->value << RDS_AF_JUMP_OFFSET);
 		radio->g_rds_grp_proc_ps |= rds_grps_proc;
 		retval = hci_fm_rds_grps_process(
@@ -2882,6 +3029,11 @@ static int iris_vidioc_s_ctrl(struct file *file, void *priv,
 	case V4L2_CID_PRIVATE_IRIS_ANTENNA:
 		temp_val = ctrl->value;
 		retval = hci_fm_set_antenna(&temp_val, radio->fm_hdev);
+		if (retval < 0) {
+			FMDERR("Set Antenna failed retval = %x", retval);
+			return retval;
+		}
+		radio->g_antenna =  ctrl->value;
 		break;
 	case V4L2_CID_RDS_TX_PTY:
 		radio->pty = ctrl->value;
@@ -2960,9 +3112,70 @@ static int iris_vidioc_s_ctrl(struct file *file, void *priv,
 		temp_val = ctrl->value;
 		retval = hci_set_notch_filter(&temp_val, radio->fm_hdev);
 		break;
+	case V4L2_CID_PRIVATE_INTF_HIGH_THRESHOLD:
+		retval = hci_cmd(HCI_FM_GET_DET_CH_TH_CMD, radio->fm_hdev);
+		if (retval < 0) {
+			FMDERR("Failed to get chnl det thresholds  %d", retval);
+			return retval;
+		}
+		radio->ch_det_threshold.high_th = ctrl->value;
+		retval = hci_set_ch_det_thresholds_req(&radio->ch_det_threshold,
+							 radio->fm_hdev);
+		if (retval < 0) {
+			FMDERR("Failed to set High det threshold %d ", retval);
+			return retval;
+		}
+		break;
+
+	case V4L2_CID_PRIVATE_INTF_LOW_THRESHOLD:
+		retval = hci_cmd(HCI_FM_GET_DET_CH_TH_CMD, radio->fm_hdev);
+		if (retval < 0) {
+			FMDERR("Failed to get chnl det thresholds  %d", retval);
+			return retval;
+		}
+		radio->ch_det_threshold.low_th = ctrl->value;
+		retval = hci_set_ch_det_thresholds_req(&radio->ch_det_threshold,
+							 radio->fm_hdev);
+		if (retval < 0) {
+			FMDERR("Failed to Set Low det threshold %d", retval);
+			return retval;
+		}
+		break;
+
+	case V4L2_CID_PRIVATE_SINR_THRESHOLD:
+		retval = hci_cmd(HCI_FM_GET_DET_CH_TH_CMD, radio->fm_hdev);
+		if (retval < 0) {
+			FMDERR("Failed to get chnl det thresholds  %d", retval);
+			return retval;
+		}
+		radio->ch_det_threshold.sinr = ctrl->value;
+		retval = hci_set_ch_det_thresholds_req(&radio->ch_det_threshold,
+							 radio->fm_hdev);
+		if (retval < 0) {
+			FMDERR("Failed to set SINR threshold %d", retval);
+			return retval;
+		}
+		break;
+
+	case V4L2_CID_PRIVATE_SINR_SAMPLES:
+		retval = hci_cmd(HCI_FM_GET_DET_CH_TH_CMD, radio->fm_hdev);
+		if (retval < 0) {
+			FMDERR("Failed to get chnl det thresholds  %d", retval);
+			return retval;
+		}
+		radio->ch_det_threshold.sinr_samples = ctrl->value;
+		retval = hci_set_ch_det_thresholds_req(&radio->ch_det_threshold,
+							 radio->fm_hdev);
+	       if (retval < 0) {
+			FMDERR("Failed to set SINR samples  %d", retval);
+			return retval;
+		}
+		break;
+
 	case V4L2_CID_PRIVATE_IRIS_SRCH_ALGORITHM:
+	case V4L2_CID_PRIVATE_IRIS_SET_AUDIO_PATH:
 		/*
-		This private control is a place holder to keep the
+		These private controls are place holders to keep the
 		driver compatible with changes done in the frameworks
 		which are specific to TAVARUA.
 		*/
@@ -2979,9 +3192,11 @@ static int iris_vidioc_g_tuner(struct file *file, void *priv,
 {
 	int retval;
 	struct iris_device *radio = video_get_drvdata(video_devdata(file));
-	if (tuner->index > 0)
-		return -EINVAL;
 
+	if (tuner->index > 0) {
+		FMDERR("Invalid Tuner Index");
+		return -EINVAL;
+	}
 	if (radio->mode == FM_RECV) {
 		retval = hci_cmd(HCI_FM_GET_STATION_PARAM_CMD, radio->fm_hdev);
 		if (retval < 0) {
@@ -3057,16 +3272,12 @@ static int iris_vidioc_g_frequency(struct file *file, void *priv,
 		struct v4l2_frequency *freq)
 {
 	struct iris_device *radio = video_get_drvdata(video_devdata(file));
-	int retval;
-
-	freq->type = V4L2_TUNER_RADIO;
-	retval = hci_cmd(HCI_FM_GET_STATION_PARAM_CMD, radio->fm_hdev);
-	if (retval < 0)
-		FMDERR("get frequency failed %d\n", retval);
-	else
+	if ((freq != NULL) && (radio != NULL)) {
 		freq->frequency =
 			radio->fm_st_rsp.station_rsp.station_freq * TUNE_PARAM;
-	return retval;
+	} else
+		return -EINVAL;
+	return 0;
 }
 
 static int iris_vidioc_s_frequency(struct file *file, void *priv,
@@ -3236,7 +3447,7 @@ static int __init iris_probe(struct platform_device *pdev)
 		if ((i == IRIS_BUF_RAW_RDS) || (i == IRIS_BUF_PEEK))
 			kfifo_alloc_rc = kfifo_alloc(&radio->data_buf[i],
 				rds_buf*3, GFP_KERNEL);
-		else if (i == IRIS_BUF_CAL_DATA)
+		else if ((i == IRIS_BUF_CAL_DATA) || (i == IRIS_BUF_RT_RDS))
 			kfifo_alloc_rc = kfifo_alloc(&radio->data_buf[i],
 				STD_BUF_SIZE*2, GFP_KERNEL);
 		else

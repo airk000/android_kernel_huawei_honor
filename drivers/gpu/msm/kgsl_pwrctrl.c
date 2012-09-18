@@ -284,7 +284,10 @@ static int kgsl_pwrctrl_gpubusy_show(struct device *dev,
 DEVICE_ATTR(gpuclk, 0644, kgsl_pwrctrl_gpuclk_show, kgsl_pwrctrl_gpuclk_store);
 DEVICE_ATTR(max_gpuclk, 0644, kgsl_pwrctrl_max_gpuclk_show,
 	kgsl_pwrctrl_max_gpuclk_store);
+/*< DTS2011123005723 hanfeng 20111230 begin*/
+/*modify the file permission */
 DEVICE_ATTR(pwrnap, 0664, kgsl_pwrctrl_pwrnap_show, kgsl_pwrctrl_pwrnap_store);
+/* DTS2011123005723 hanfeng 20111230 end >*/
 DEVICE_ATTR(idle_timer, 0644, kgsl_pwrctrl_idle_timer_show,
 	kgsl_pwrctrl_idle_timer_store);
 DEVICE_ATTR(gpubusy, 0644, kgsl_pwrctrl_gpubusy_show,
@@ -509,6 +512,10 @@ int kgsl_pwrctrl_init(struct kgsl_device *device)
 	pwr->nap_allowed = pdata->nap_allowed;
 	pwr->idle_needed = pdata->idle_needed;
 	pwr->interval_timeout = pdata->idle_timeout;
+	/*< DTS2012041906630 zhangxiangdang 20120423 begin */
+	/*merge qc patch to fix kgsl issue.*/
+	pwr->strtstp_sleepwake = pdata->strtstp_sleepwake;
+	/* DTS2012041906630 zhangxiangdang 20120423 end > */
 	pwr->ebi1_clk = clk_get(&pdev->dev, "bus_clk");
 	if (IS_ERR(pwr->ebi1_clk))
 		pwr->ebi1_clk = NULL;
@@ -540,7 +547,7 @@ int kgsl_pwrctrl_init(struct kgsl_device *device)
 		goto done;
 	}
 
-//	register_early_suspend(&device->display_off);
+	register_early_suspend(&device->display_off);
 	return result;
 
 clk_err:
@@ -559,7 +566,7 @@ void kgsl_pwrctrl_close(struct kgsl_device *device)
 
 	KGSL_PWR_INFO(device, "close device %d\n", device->id);
 
-//	unregister_early_suspend(&device->display_off);
+	unregister_early_suspend(&device->display_off);
 
 	if (pwr->interrupt_num > 0) {
 		if (pwr->have_irq) {
@@ -631,7 +638,10 @@ void kgsl_timer(unsigned long data)
 
 	KGSL_PWR_INFO(device, "idle timer expired device %d\n", device->id);
 	if (device->requested_state != KGSL_STATE_SUSPEND) {
-		if (device->pwrctrl.restore_slumber)
+		/*< DTS2012041906630 zhangxiangdang 20120423 begin */
+		if (device->pwrctrl.restore_slumber ||
+					device->pwrctrl.strtstp_sleepwake)
+			/* DTS2012041906630 zhangxiangdang 20120423 end > */
 			kgsl_pwrctrl_request_state(device, KGSL_STATE_SLUMBER);
 		else
 			kgsl_pwrctrl_request_state(device, KGSL_STATE_SLEEP);
@@ -699,7 +709,9 @@ _nap(struct kgsl_device *device)
 		}
 		kgsl_pwrctrl_irq(device, KGSL_PWRFLAGS_OFF);
 		kgsl_pwrctrl_clk(device, KGSL_PWRFLAGS_OFF);
-		kgsl_pwrctrl_set_state(device, KGSL_STATE_NAP);
+		/*< DTS2012041906630 zhangxiangdang 20120423 begin */
+		kgsl_pwrctrl_set_state(device, device->requested_state);
+		/* DTS2012041906630 zhangxiangdang 20120423 end > */
 		if (device->idle_wakelock.name)
 			wake_unlock(&device->idle_wakelock);
 	case KGSL_STATE_NAP:
@@ -771,7 +783,11 @@ _slumber(struct kgsl_device *device)
 	case KGSL_STATE_NAP:
 	case KGSL_STATE_SLEEP:
 		del_timer_sync(&device->idle_timer);
-		kgsl_pwrctrl_pwrlevel_change(device, KGSL_PWRLEVEL_NOMINAL);
+		/*< DTS2012041906630 zhangxiangdang 20120423 begin */
+		if (!device->pwrctrl.strtstp_sleepwake)
+			kgsl_pwrctrl_pwrlevel_change(device,
+					KGSL_PWRLEVEL_NOMINAL);
+		/* DTS2012041906630 zhangxiangdang 20120423 end > */
 		device->ftbl->suspend_context(device);
 		device->ftbl->stop(device);
 		device->pwrctrl.restore_slumber = true;

@@ -28,6 +28,7 @@
 
 #include <asm/atomic.h>
 #include <asm/cacheflush.h>
+#include <asm/exception.h>
 #include <asm/system.h>
 #include <asm/unistd.h>
 #include <asm/traps.h>
@@ -265,6 +266,7 @@ void die(const char *str, struct pt_regs *regs, int err)
 {
 	struct thread_info *thread = current_thread_info();
 	int ret;
+	enum bug_trap_type bug_type = BUG_TRAP_TYPE_NONE;
 
 	oops_enter();
 
@@ -272,7 +274,9 @@ void die(const char *str, struct pt_regs *regs, int err)
 	console_verbose();
 	bust_spinlocks(1);
 	if (!user_mode(regs))
-		report_bug(regs->ARM_pc, regs);
+		bug_type = report_bug(regs->ARM_pc, regs);
+	if (bug_type != BUG_TRAP_TYPE_NONE)
+		str = "Oops - BUG";
 	ret = __die(str, err, thread, regs);
 
 	if (regs && kexec_should_crash(thread->task))
@@ -808,7 +812,11 @@ void __init early_trap_init(void)
 
 	flush_icache_range(vectors, vectors + PAGE_SIZE);
 	modify_domain(DOMAIN_USER, DOMAIN_CLIENT);
+    /* <DTS2010071902568 hufeng 20100719 begin */
+	/*<BU5D08740 qinwei 20100426 begin */
 #ifdef CONFIG_HUAWEI_KERNEL
 	user_debug = UDBG_UNDEFINED|UDBG_BADABORT|UDBG_SEGV;
 #endif
+	/*BU5D08740 qinwei 20100426 end >*/
+    /* DTS2010071902568 hufeng 20100719 end> */
 }

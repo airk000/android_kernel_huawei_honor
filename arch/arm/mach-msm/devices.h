@@ -1,7 +1,7 @@
 /* linux/arch/arm/mach-msm/devices.h
  *
  * Copyright (C) 2008 Google, Inc.
- * Copyright (c) 2009-2011, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2009-2012, Code Aurora Forum. All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -77,6 +77,7 @@ extern struct platform_device apq8064_device_ssbi_pmic2;
 extern struct platform_device msm9615_device_uart_gsbi4;
 extern struct platform_device msm9615_device_qup_i2c_gsbi5;
 extern struct platform_device msm9615_device_qup_spi_gsbi3;
+extern struct platform_device msm9615_slim_ctrl;
 extern struct platform_device msm9615_device_ssbi_pmic1;
 extern struct platform_device msm9615_device_tsens;
 extern struct platform_device msm_bus_9615_sys_fabric;
@@ -136,6 +137,10 @@ extern struct platform_device msm_device_tssc;
 
 extern struct platform_device msm_rotator_device;
 
+#ifdef CONFIG_MSM_BUS_SCALING
+extern struct msm_bus_scale_pdata rotator_bus_scale_pdata;
+#endif
+
 extern struct platform_device msm_device_tsif[2];
 
 extern struct platform_device msm_device_ssbi_pmic1;
@@ -151,6 +156,7 @@ extern struct platform_device msm_gsbi1_qup_spi_device;
 extern struct platform_device msm_device_vidc_720p;
 
 extern struct platform_device msm_pcm;
+extern struct platform_device msm_multi_ch_pcm;
 extern struct platform_device msm_pcm_routing;
 extern struct platform_device msm_cpudai0;
 extern struct platform_device msm_cpudai1;
@@ -173,11 +179,40 @@ extern struct platform_device msm_cpudai_afe_02_rx;
 extern struct platform_device msm_cpudai_afe_02_tx;
 extern struct platform_device msm_pcm_afe;
 extern struct platform_device msm_compr_dsp;
+extern struct platform_device msm_cpudai_incall_music_rx;
+extern struct platform_device msm_cpudai_incall_record_rx;
+extern struct platform_device msm_cpudai_incall_record_tx;
 
 extern struct platform_device msm_pil_q6v3;
+extern struct platform_device msm_pil_modem;
+extern struct platform_device msm_pil_tzapps;
 extern struct platform_device msm_8960_q6_lpass;
 extern struct platform_device msm_8960_q6_mss_fw;
 extern struct platform_device msm_8960_q6_mss_sw;
+extern struct platform_device msm_8960_riva;
+
+extern struct platform_device apq_pcm;
+extern struct platform_device apq_pcm_routing;
+extern struct platform_device apq_cpudai0;
+extern struct platform_device apq_cpudai1;
+extern struct platform_device apq_cpudai_hdmi_rx;
+extern struct platform_device apq_cpudai_bt_rx;
+extern struct platform_device apq_cpudai_bt_tx;
+extern struct platform_device apq_cpudai_fm_rx;
+extern struct platform_device apq_cpudai_fm_tx;
+extern struct platform_device apq_cpudai_auxpcm_rx;
+extern struct platform_device apq_cpudai_auxpcm_tx;
+extern struct platform_device apq_cpu_fe;
+extern struct platform_device apq_stub_codec;
+extern struct platform_device apq_voice;
+extern struct platform_device apq_voip;
+extern struct platform_device apq_lpa_pcm;
+extern struct platform_device apq_pcm_hostless;
+extern struct platform_device apq_cpudai_afe_01_rx;
+extern struct platform_device apq_cpudai_afe_01_tx;
+extern struct platform_device apq_cpudai_afe_02_rx;
+extern struct platform_device apq_cpudai_afe_02_tx;
+extern struct platform_device apq_pcm_afe;
 
 extern struct platform_device *msm_footswitch_devices[];
 extern unsigned msm_num_footswitch_devices;
@@ -228,6 +263,5 @@ extern struct platform_device msm9615_device_watchdog;
 extern struct platform_device msm_etb_device;
 extern struct platform_device msm_tpiu_device;
 extern struct platform_device msm_funnel_device;
-extern struct platform_device msm_debug_device;
-extern struct platform_device msm_ptm_device;
+extern struct platform_device msm_etm_device;
 #endif

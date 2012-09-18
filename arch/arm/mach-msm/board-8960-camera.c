@@ -1,4 +1,4 @@
-/* Copyright (c) 2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -11,12 +11,10 @@
  *
  */
 
-#include <linux/i2c.h>
-#include <linux/i2c/sx150x.h>
 #include <asm/mach-types.h>
+#include <linux/gpio.h>
 #include <mach/board.h>
 #include <mach/msm_bus_board.h>
-#include <mach/gpio.h>
 #include <mach/gpiomux.h>
 #include "devices.h"
 #include "board-8960.h"
@@ -131,7 +129,7 @@ static struct msm_gpiomux_config msm8960_cam_common_configs[] = {
 	{
 		.gpio = 5,
 		.settings = {
-			[GPIOMUX_ACTIVE]    = &cam_settings[1],
+			[GPIOMUX_ACTIVE]    = &cam_settings[3],
 			[GPIOMUX_SUSPENDED] = &cam_settings[0],
 		},
 	},
@@ -183,20 +181,6 @@ static struct msm_gpiomux_config msm8960_cam_2d_configs[] = {
 };
 
 #ifdef CONFIG_MSM_CAMERA
-
-static uint16_t msm_cam_gpio_2d_tbl[] = {
-	5, /*CAMIF_MCLK*/
-	20, /*CAMIF_I2C_DATA*/
-	21, /*CAMIF_I2C_CLK*/
-};
-
-static struct msm_camera_gpio_conf gpio_conf = {
-	.cam_gpiomux_conf_tbl = msm8960_cam_2d_configs,
-	.cam_gpiomux_conf_tbl_size = ARRAY_SIZE(msm8960_cam_2d_configs),
-	.cam_gpio_tbl = msm_cam_gpio_2d_tbl,
-	.cam_gpio_tbl_size = ARRAY_SIZE(msm_cam_gpio_2d_tbl),
-};
-
 #define VFE_CAMIF_TIMER1_GPIO 2
 #define VFE_CAMIF_TIMER2_GPIO 3
 #define VFE_CAMIF_TIMER3_GPIO_INT 4
@@ -262,8 +246,8 @@ static struct msm_bus_vectors cam_video_vectors[] = {
 	{
 		.src = MSM_BUS_MASTER_VFE,
 		.dst = MSM_BUS_SLAVE_EBI_CH0,
-		.ab  = 140451840,
-		.ib  = 561807360,
+		.ab  = 154275840,
+		.ib  = 617103360,
 	},
 	{
 		.src = MSM_BUS_MASTER_VPE,
@@ -352,17 +336,82 @@ static struct msm_bus_scale_pdata cam_bus_client_pdata = {
 
 static struct msm_camera_device_platform_data msm_camera_csi_device_data[] = {
 	{
-		.ioclk.mclk_clk_rate = 24000000,
-		.ioclk.vfe_clk_rate  = 228570000,
 		.csid_core = 0,
+		.is_csiphy = 1,
+		.is_csid   = 1,
+		.is_ispif  = 1,
+		.is_vpe    = 1,
 		.cam_bus_scale_table = &cam_bus_client_pdata,
 	},
 	{
-		.ioclk.mclk_clk_rate = 24000000,
-		.ioclk.vfe_clk_rate  = 228570000,
 		.csid_core = 1,
+		.is_csiphy = 1,
+		.is_csid   = 1,
+		.is_ispif  = 1,
+		.is_vpe    = 1,
 		.cam_bus_scale_table = &cam_bus_client_pdata,
 	},
+};
+
+static struct camera_vreg_t msm_8960_back_cam_vreg[] = {
+	{"mipi_csi_vdd", REG_LDO, 1200000, 1200000, 20000},
+	{"cam_vana", REG_LDO, 2800000, 2850000, 85600},
+	{"cam_vio", REG_VS, 0, 0, 0},
+	{"cam_vdig", REG_LDO, 1200000, 1200000, 105000},
+	{"cam_vaf", REG_LDO, 2800000, 2800000, 300000},
+};
+
+static struct camera_vreg_t msm_8960_front_cam_vreg[] = {
+	{"mipi_csi_vdd", REG_LDO, 1200000, 1200000, 20000},
+	{"cam_vana", REG_LDO, 2800000, 2850000, 85600},
+	{"cam_vio", REG_VS, 0, 0, 0},
+	{"cam_vdig", REG_LDO, 1200000, 1200000, 105000},
+};
+
+static struct gpio msm8960_common_cam_gpio[] = {
+	{5, GPIOF_DIR_IN, "CAMIF_MCLK"},
+	{20, GPIOF_DIR_IN, "CAMIF_I2C_DATA"},
+	{21, GPIOF_DIR_IN, "CAMIF_I2C_CLK"},
+};
+
+static struct gpio msm8960_front_cam_gpio[] = {
+	{76, GPIOF_DIR_OUT, "CAM_RESET"},
+};
+
+static struct gpio msm8960_back_cam_gpio[] = {
+	{107, GPIOF_DIR_OUT, "CAM_RESET"},
+};
+
+static struct msm_gpio_set_tbl msm8960_front_cam_gpio_set_tbl[] = {
+	{76, GPIOF_OUT_INIT_LOW, 1000},
+	{76, GPIOF_OUT_INIT_HIGH, 4000},
+};
+
+static struct msm_gpio_set_tbl msm8960_back_cam_gpio_set_tbl[] = {
+	{107, GPIOF_OUT_INIT_LOW, 1000},
+	{107, GPIOF_OUT_INIT_HIGH, 4000},
+};
+
+static struct msm_camera_gpio_conf msm_8960_front_cam_gpio_conf = {
+	.cam_gpiomux_conf_tbl = msm8960_cam_2d_configs,
+	.cam_gpiomux_conf_tbl_size = ARRAY_SIZE(msm8960_cam_2d_configs),
+	.cam_gpio_common_tbl = msm8960_common_cam_gpio,
+	.cam_gpio_common_tbl_size = ARRAY_SIZE(msm8960_common_cam_gpio),
+	.cam_gpio_req_tbl = msm8960_front_cam_gpio,
+	.cam_gpio_req_tbl_size = ARRAY_SIZE(msm8960_front_cam_gpio),
+	.cam_gpio_set_tbl = msm8960_front_cam_gpio_set_tbl,
+	.cam_gpio_set_tbl_size = ARRAY_SIZE(msm8960_front_cam_gpio_set_tbl),
+};
+
+static struct msm_camera_gpio_conf msm_8960_back_cam_gpio_conf = {
+	.cam_gpiomux_conf_tbl = msm8960_cam_2d_configs,
+	.cam_gpiomux_conf_tbl_size = ARRAY_SIZE(msm8960_cam_2d_configs),
+	.cam_gpio_common_tbl = msm8960_common_cam_gpio,
+	.cam_gpio_common_tbl_size = ARRAY_SIZE(msm8960_common_cam_gpio),
+	.cam_gpio_req_tbl = msm8960_back_cam_gpio,
+	.cam_gpio_req_tbl_size = ARRAY_SIZE(msm8960_back_cam_gpio),
+	.cam_gpio_set_tbl = msm8960_back_cam_gpio_set_tbl,
+	.cam_gpio_set_tbl_size = ARRAY_SIZE(msm8960_back_cam_gpio_set_tbl),
 };
 
 #ifdef CONFIG_IMX074_ACT
@@ -388,10 +437,9 @@ static struct msm_camera_sensor_flash_data flash_imx074 = {
 
 static struct msm_camera_sensor_platform_info sensor_board_info_imx074 = {
 	.mount_angle	= 90,
-	.sensor_reset	= 107,
-	.sensor_pwd	= 85,
-	.vcm_pwd	= 0,
-	.vcm_enable	= 1,
+	.cam_vreg = msm_8960_back_cam_vreg,
+	.num_vreg = ARRAY_SIZE(msm_8960_back_cam_vreg),
+	.gpio_conf = &msm_8960_back_cam_gpio_conf,
 };
 
 static struct msm_camera_sensor_info msm_camera_sensor_imx074_data = {
@@ -400,19 +448,11 @@ static struct msm_camera_sensor_info msm_camera_sensor_imx074_data = {
 	.flash_data	= &flash_imx074,
 	.strobe_flash_data = &strobe_flash_xenon,
 	.sensor_platform_info = &sensor_board_info_imx074,
-	.gpio_conf = &gpio_conf,
 	.csi_if	= 1,
 	.camera_type = BACK_CAMERA_2D,
 #ifdef CONFIG_IMX074_ACT
 	.actuator_info = &imx074_actuator_info
 #endif
-};
-
-static struct platform_device msm8960_camera_sensor_imx074 = {
-	.name	= "msm_camera_imx074",
-	.dev	= {
-		.platform_data = &msm_camera_sensor_imx074_data,
-	},
 };
 #endif
 
@@ -423,7 +463,9 @@ static struct msm_camera_sensor_flash_data flash_mt9m114 = {
 
 static struct msm_camera_sensor_platform_info sensor_board_info_mt9m114 = {
 	.mount_angle = 90,
-	.sensor_reset = 107,
+	.cam_vreg = msm_8960_back_cam_vreg,
+	.num_vreg = ARRAY_SIZE(msm_8960_back_cam_vreg),
+	.gpio_conf = &msm_8960_back_cam_gpio_conf,
 };
 
 static struct msm_camera_sensor_info msm_camera_sensor_mt9m114_data = {
@@ -431,16 +473,8 @@ static struct msm_camera_sensor_info msm_camera_sensor_mt9m114_data = {
 	.pdata = &msm_camera_csi_device_data[0],
 	.flash_data = &flash_mt9m114,
 	.sensor_platform_info = &sensor_board_info_mt9m114,
-	.gpio_conf = &gpio_conf,
 	.csi_if = 1,
 	.camera_type = BACK_CAMERA_2D,
-};
-
-struct platform_device msm8960_camera_sensor_mt9m114 = {
-	.name = "msm_camera_mt9m114",
-	.dev = {
-		.platform_data = &msm_camera_sensor_mt9m114_data,
-	},
 };
 #endif
 
@@ -451,10 +485,9 @@ static struct msm_camera_sensor_flash_data flash_ov2720 = {
 
 static struct msm_camera_sensor_platform_info sensor_board_info_ov2720 = {
 	.mount_angle	= 0,
-	.sensor_reset	= 76,
-	.sensor_pwd	= 85,
-	.vcm_pwd	= 0,
-	.vcm_enable	= 1,
+	.cam_vreg = msm_8960_front_cam_vreg,
+	.num_vreg = ARRAY_SIZE(msm_8960_front_cam_vreg),
+	.gpio_conf = &msm_8960_front_cam_gpio_conf,
 };
 
 static struct msm_camera_sensor_info msm_camera_sensor_ov2720_data = {
@@ -462,34 +495,66 @@ static struct msm_camera_sensor_info msm_camera_sensor_ov2720_data = {
 	.pdata	= &msm_camera_csi_device_data[1],
 	.flash_data	= &flash_ov2720,
 	.sensor_platform_info = &sensor_board_info_ov2720,
-	.gpio_conf = &gpio_conf,
 	.csi_if	= 1,
 	.camera_type = FRONT_CAMERA_2D,
 };
-
-static struct platform_device msm8960_camera_sensor_ov2720 = {
-	.name	= "msm_camera_ov2720",
-	.dev	= {
-		.platform_data = &msm_camera_sensor_ov2720_data,
-	},
-};
 #endif
 
-static struct msm8960_privacy_light_cfg privacy_light_info = {
-	.mpp = PM8921_MPP_PM_TO_SYS(12),
+static struct camera_vreg_t msm_8960_s5k3l1yx_vreg[] = {
+	{"mipi_csi_vdd", REG_LDO, 1200000, 1200000, 20000},
+	{"cam_vdig", REG_LDO, 1200000, 1200000, 105000},
+	{"cam_vana", REG_LDO, 2800000, 2850000, 85600},
+	{"cam_vio", REG_VS, 0, 0, 0},
+	{"cam_vaf", REG_LDO, 2800000, 2800000, 300000},
 };
+
+static struct msm_camera_sensor_flash_data flash_s5k3l1yx = {
+	.flash_type = MSM_CAMERA_FLASH_NONE,
+};
+
+static struct msm_camera_sensor_platform_info sensor_board_info_s5k3l1yx = {
+	.mount_angle  = 0,
+	.cam_vreg = msm_8960_s5k3l1yx_vreg,
+	.num_vreg = ARRAY_SIZE(msm_8960_s5k3l1yx_vreg),
+	.gpio_conf = &msm_8960_back_cam_gpio_conf,
+};
+
+static struct msm_camera_sensor_info msm_camera_sensor_s5k3l1yx_data = {
+	.sensor_name          = "s5k3l1yx",
+	.pdata                = &msm_camera_csi_device_data[0],
+	.flash_data           = &flash_s5k3l1yx,
+	.sensor_platform_info = &sensor_board_info_s5k3l1yx,
+	.csi_if               = 1,
+	.camera_type          = BACK_CAMERA_2D,
+};
+
+static struct pm8xxx_mpp_config_data privacy_light_on_config = {
+	.type		= PM8XXX_MPP_TYPE_SINK,
+	.level		= PM8XXX_MPP_CS_OUT_5MA,
+	.control	= PM8XXX_MPP_CS_CTRL_MPP_LOW_EN,
+};
+
+static struct pm8xxx_mpp_config_data privacy_light_off_config = {
+	.type		= PM8XXX_MPP_TYPE_SINK,
+	.level		= PM8XXX_MPP_CS_OUT_5MA,
+	.control	= PM8XXX_MPP_CS_CTRL_DISABLE,
+};
+
+static int32_t msm_camera_8960_ext_power_ctrl(int enable)
+{
+	int rc = 0;
+	if (enable) {
+		rc = pm8xxx_mpp_config(PM8921_MPP_PM_TO_SYS(12),
+			&privacy_light_on_config);
+	} else {
+		rc = pm8xxx_mpp_config(PM8921_MPP_PM_TO_SYS(12),
+			&privacy_light_off_config);
+	}
+	return rc;
+}
 
 void __init msm8960_init_cam(void)
 {
-	int i;
-	struct platform_device *cam_dev[] = {
-		&msm8960_camera_sensor_imx074,
-#ifdef CONFIG_MT9M114
-		&msm8960_camera_sensor_mt9m114,
-#endif
-		&msm8960_camera_sensor_ov2720,
-	};
-
 	msm_gpiomux_install(msm8960_cam_common_configs,
 			ARRAY_SIZE(msm8960_cam_common_configs));
 
@@ -509,19 +574,11 @@ void __init msm8960_init_cam(void)
 
 	if (machine_is_msm8960_liquid()) {
 		struct msm_camera_sensor_info *s_info;
-		s_info = msm8960_camera_sensor_imx074.dev.platform_data;
+		s_info = &msm_camera_sensor_imx074_data;
 		s_info->sensor_platform_info->mount_angle = 180;
-		s_info = msm8960_camera_sensor_ov2720.dev.platform_data;
-		s_info->sensor_platform_info->privacy_light = 1;
-		s_info->sensor_platform_info->privacy_light_info =
-			&privacy_light_info;
-	}
-
-	for (i = 0; i < ARRAY_SIZE(cam_dev); i++) {
-		struct msm_camera_sensor_info *s_info;
-		s_info = cam_dev[i]->dev.platform_data;
-		msm_get_cam_resources(s_info);
-		platform_device_register(cam_dev[i]);
+		s_info = &msm_camera_sensor_ov2720_data;
+		s_info->sensor_platform_info->ext_power_ctrl =
+			msm_camera_8960_ext_power_ctrl;
 	}
 
 	platform_device_register(&msm8960_device_csiphy0);
@@ -532,4 +589,39 @@ void __init msm8960_init_cam(void)
 	platform_device_register(&msm8960_device_vfe);
 	platform_device_register(&msm8960_device_vpe);
 }
+
+#ifdef CONFIG_I2C
+static struct i2c_board_info msm8960_camera_i2c_boardinfo[] = {
+#ifdef CONFIG_IMX074
+	{
+	I2C_BOARD_INFO("imx074", 0x1A),
+	.platform_data = &msm_camera_sensor_imx074_data,
+	},
+#endif
+#ifdef CONFIG_OV2720
+	{
+	I2C_BOARD_INFO("ov2720", 0x6C),
+	.platform_data = &msm_camera_sensor_ov2720_data,
+	},
+#endif
+	{
+	I2C_BOARD_INFO("mt9m114", 0x48),
+	.platform_data = &msm_camera_sensor_mt9m114_data,
+	},
+	{
+	I2C_BOARD_INFO("s5k3l1yx", 0x20),
+	.platform_data = &msm_camera_sensor_s5k3l1yx_data,
+	},
+#ifdef CONFIG_MSM_CAMERA_FLASH_SC628A
+	{
+	I2C_BOARD_INFO("sc628a", 0x6E),
+	},
+#endif
+};
+
+struct msm_camera_board_info msm8960_camera_board_info = {
+	.board_info = msm8960_camera_i2c_boardinfo,
+	.num_i2c_board_info = ARRAY_SIZE(msm8960_camera_i2c_boardinfo),
+};
+#endif
 #endif

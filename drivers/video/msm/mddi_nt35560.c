@@ -1,3 +1,4 @@
+/*< DTS2011042601502  jiaoshuangwei 20110308 begin*/
 /* drivers\video\msm\mddi_nt35560.c
  * NT35560 LCD driver for 7x30 platform
  *
@@ -20,12 +21,15 @@
 #include <linux/pwm.h>
 #include <mach/pmic.h>
 #include "hw_backlight.h"
-#include "hw_mddi_lcd.h"
+#include "hw_lcd_common.h"
 #include "lcd_hw_debug.h"
+/*<DTS2011081002714 jiaoshuangwei 20110810 begin*/
 #include <asm/mach-types.h> 
+/*DTS2011081002714 jiaoshuangwei 20110810 end >*/
 struct sequence* nt35560_fwvga_init_table = NULL;
 static lcd_panel_type lcd_panel_fwvga = LCD_NONE;
 
+/*< DTS2011081800466 pengyu 20110818 begin */
 #ifdef CONFIG_FB_AUTO_CABC
 /* NT35560 CABC registers default value */
 #define DEFAULT_VAL_ABC_CTRL2           0x0080
@@ -93,7 +97,9 @@ static struct sequence nt35560_fwvga_write_cabc_brightness_table[] =
     {0x5100,0x00,0}
 };
 
+/* DTS2011081800466 pengyu 20110818 end >*/
 
+/*<DTS2011081002714 jiaoshuangwei 20110810 begin*/
 /* reload CABC frequency register ,because sleep out ,it recover default value 
  * U8860 and C8860 use 300Hz
  */
@@ -110,19 +116,28 @@ static const struct sequence nt35560_fwvga_standby_exit_tablelp[] =
 	{0x1100,0x00,120},
 	{0x22C0,0x04,0},
 };
+/*DTS2011081002714 jiaoshuangwei 20110810 end >*/
 
 static const struct sequence nt35560_fwvga_standby_enter_table[]= 
 {
 	{0x1000,0x00,120}
 };
+/*< DTS2011072500979 jiaoshuangwei 20110725 begin */
 /* add the code for dynamic gamma function  */
 #ifdef CONFIG_FB_DYNAMIC_GAMMA
 //gamma 2.2
+/*< DTS2011081601583 pengyu 20110816 begin */
 /* Revise some spelling mistake */
 static const struct sequence nt35560_fwvga_dynamic_gamma22_table[] = 
+/* DTS2011081601583 pengyu 20110816 end >*/
 {          
     {0XC980,0X01,0},
-    {0x5500,0x00,0},
+	/*< DTS2012052303745 zhongjinrong 20120523 begin */
+    /*< DTS2011112403478 pengyu 20111124 begin */
+    /* No need to config cabc mode in dynamic gamma settings */
+    /*{0x5500,0x00,0},*/
+    /* DTS2011112403478 pengyu 20111124 end >*/
+	/* DTS2012052303745 zhongjinrong 20120523 end >*/
     {0X0180,0X14,0},
     {0X0280,0X00,0},
     {0X0380,0X33,0},
@@ -273,21 +288,33 @@ static const struct sequence nt35560_fwvga_dynamic_gamma22_table[] =
     {0XF380,0XCC,0},
     {0XFB80,0X00,0},
     {0X3500,0X00,0},
+/*<DTS2011081002714 jiaoshuangwei 20110810 begin*/
 /* delete two lines */
+/*DTS2011081002714 jiaoshuangwei 20110810 end >*/
 };
 //gamma1.9
+/*< DTS2011081601583 pengyu 20110816 begin */
 /* Revise some spelling mistake */
 static const struct sequence nt35560_fwvga_dynamic_gamma19_table[] = 
+/* DTS2011081601583 pengyu 20110816 end >*/
 {
 	{0x1100,0x00,120}
 };
 //gamma2.5
+/*< DTS2011081601583 pengyu 20110816 begin */
 /* Revise some spelling mistake */
 static const struct sequence nt35560_fwvga_dynamic_gamma25_table[] = 
+/* DTS2011081601583 pengyu 20110816 end >*/
 {
+/*<DTS2011081002714 jiaoshuangwei 20110810 begin*/
 /*there is 2.5 GAMA initialization sequence */
 	{0XC980,0X01,0},
-	{0x5500,0x00,0},
+	/*< DTS2012052303745 zhongjinrong 20120523 begin */
+    /*< DTS2011112403478 pengyu 20111124 begin */
+    /* No need to config cabc mode in dynamic gamma settings */
+    /*{0x5500,0x00,0},*/
+    /* DTS2011112403478 pengyu 20111124 end >*/
+	/* DTS2012052303745 zhongjinrong 20120523 end >*/
 	{0X0180,0X14,0},
 	{0X0280,0X00,0},
 	{0X0380,0X33,0},
@@ -438,8 +465,10 @@ static const struct sequence nt35560_fwvga_dynamic_gamma25_table[] =
 	{0XF380,0XCC,0},
 	{0XFB80,0X00,0},
     {0X3500,0X00,0},
+/*DTS2011081002714 jiaoshuangwei 20110810 end >*/
 };
 /* add the function  to set different gama by different mode */
+/*< DTS2011081601583 pengyu 20110816 begin */
 /* Revise some spelling mistakes */
 int nt35560_set_dynamic_gamma(enum danymic_gamma_mode  gamma_mode)
 {
@@ -451,26 +480,29 @@ int nt35560_set_dynamic_gamma(enum danymic_gamma_mode  gamma_mode)
     switch(gamma_mode)
     {
         case GAMMA25:
-            ret = process_lcd_table((struct sequence*)&nt35560_fwvga_dynamic_gamma25_table,
+            ret = process_mddi_table((struct sequence*)&nt35560_fwvga_dynamic_gamma25_table,
                         ARRAY_SIZE(nt35560_fwvga_dynamic_gamma25_table), lcd_panel_fwvga);
             break ;
         case GAMMA22:
-            ret = process_lcd_table((struct sequence*)&nt35560_fwvga_dynamic_gamma22_table,
+            ret = process_mddi_table((struct sequence*)&nt35560_fwvga_dynamic_gamma22_table,
                         ARRAY_SIZE(nt35560_fwvga_dynamic_gamma22_table), lcd_panel_fwvga);
             break;
         case HIGH_LIGHT:
-            ret = process_lcd_table((struct sequence*)&nt35560_fwvga_dynamic_gamma19_table,
+            ret = process_mddi_table((struct sequence*)&nt35560_fwvga_dynamic_gamma19_table,
                         ARRAY_SIZE(nt35560_fwvga_dynamic_gamma19_table), lcd_panel_fwvga);
             break;
         default:
             ret= -1;
             break;
     }
-    MDDI_LCD_DEBUG("%s: change gamma mode to %d\n",__func__,gamma_mode);
+    LCD_DEBUG("%s: change gamma mode to %d\n",__func__,gamma_mode);
     return ret;
 }
+/* DTS2011081601583 pengyu 20110816 end >*/
 #endif
+/* DTS2011072500979 jiaoshuangwei 20110725 end >*/
 
+/*< DTS2011081800466 pengyu 20110818 begin */
 #ifdef CONFIG_FB_AUTO_CABC
 /***************************************************************
 Function: nt35560_set_cabc_moving_detect
@@ -488,7 +520,7 @@ static int nt35560_set_cabc_moving_detect(uint32 state)
     {
         /* Turn off automatic moving mode selection */
         nt35560_fwvga_automatic_moving_selection_table[0].value = DEFAULT_VAL_MOV_CTRL1;
-        ret = process_lcd_table((struct sequence*)&nt35560_fwvga_automatic_moving_selection_table,
+        ret = process_mddi_table((struct sequence*)&nt35560_fwvga_automatic_moving_selection_table,
                     ARRAY_SIZE(nt35560_fwvga_automatic_moving_selection_table), lcd_panel_fwvga);
     }
     else
@@ -499,10 +531,10 @@ static int nt35560_set_cabc_moving_detect(uint32 state)
          * This function is only available in normal display mode with CABC mode is set still mode.
          */
         nt35560_fwvga_automatic_moving_selection_table[0].value = (DEFAULT_VAL_MOV_CTRL1 & (~MASK_MOVDET)) | VAL_MOVDET(0x13);
-        ret = process_lcd_table((struct sequence*)&nt35560_fwvga_automatic_moving_selection_table,
+        ret = process_mddi_table((struct sequence*)&nt35560_fwvga_automatic_moving_selection_table,
                     ARRAY_SIZE(nt35560_fwvga_automatic_moving_selection_table), lcd_panel_fwvga);
     }
-    MDDI_LCD_DEBUG("%s: set cabc moving detect: %d\n", __func__, state);
+    LCD_DEBUG("%s: set cabc moving detect: %d\n", __func__, state);
 
     return ret;
 }
@@ -521,34 +553,34 @@ static int nt35560_set_cabc_dimming(uint32 state)
 
     /* Set DMCT bit to 1, then the CABC dimming function is controlled by DD_C */
     nt35560_fwvga_abc_ctrl_14_table[0].value = VAL_BIT_DMCT | DEFAULT_VAL_ABC_CTRL14;
-    ret = process_lcd_table((struct sequence*)&nt35560_fwvga_abc_ctrl_14_table,
+    ret = process_mddi_table((struct sequence*)&nt35560_fwvga_abc_ctrl_14_table,
                     ARRAY_SIZE(nt35560_fwvga_abc_ctrl_14_table), lcd_panel_fwvga);
 
     if (state == STATE_OFF)
     {
         /* Turn off the CABC dimming function */
         nt35560_fwvga_abc_ctrl_2_table[0].value = (~VAL_BIT_DD_C) & DEFAULT_VAL_ABC_CTRL2;
-        ret = process_lcd_table((struct sequence*)&nt35560_fwvga_abc_ctrl_2_table,
+        ret = process_mddi_table((struct sequence*)&nt35560_fwvga_abc_ctrl_2_table,
                     ARRAY_SIZE(nt35560_fwvga_abc_ctrl_2_table), lcd_panel_fwvga);
     }
     else
     {
         /* Turn on the CABC dimming function */
         nt35560_fwvga_abc_ctrl_2_table[0].value = VAL_BIT_DD_C | DEFAULT_VAL_ABC_CTRL2;
-        ret = process_lcd_table((struct sequence*)&nt35560_fwvga_abc_ctrl_2_table,
+        ret = process_mddi_table((struct sequence*)&nt35560_fwvga_abc_ctrl_2_table,
                     ARRAY_SIZE(nt35560_fwvga_abc_ctrl_2_table), lcd_panel_fwvga);
 
         /* DIM_STEP_STILL, 8 steps */
         nt35560_fwvga_abc_ctrl_6_table[0].value = (DEFAULT_VAL_ABC_CTRL6 & (~MASK_DIM_STEP_STILL)) | VAL_DIM_STEP_STILL(0x02);
-        ret = process_lcd_table((struct sequence*)&nt35560_fwvga_abc_ctrl_6_table,
+        ret = process_mddi_table((struct sequence*)&nt35560_fwvga_abc_ctrl_6_table,
                     ARRAY_SIZE(nt35560_fwvga_abc_ctrl_6_table), lcd_panel_fwvga);
 
         /* DMST_C, 4 frames per step */
         nt35560_fwvga_abc_ctrl_7_table[0].value = (DEFAULT_VAL_ABC_CTRL7 & (~MASK_DMST_C)) | VAL_DMST_C(0x3);
-        ret = process_lcd_table((struct sequence*)&nt35560_fwvga_abc_ctrl_7_table,
+        ret = process_mddi_table((struct sequence*)&nt35560_fwvga_abc_ctrl_7_table,
                     ARRAY_SIZE(nt35560_fwvga_abc_ctrl_7_table), lcd_panel_fwvga);
     }
-    MDDI_LCD_DEBUG("%s: set cabc dimming: %d\n", __func__, state);
+    LCD_DEBUG("%s: set cabc dimming: %d\n", __func__, state);
 
     return ret;
 }
@@ -573,12 +605,12 @@ static int nt35560_set_cabc_mode(uint32 mode)
         case CABC_MODE_MOVING:
             /* Set CABC mode, 0 for off, 1 for UI mode, 2 for still mode, 3 for moving mode */
             nt35560_fwvga_write_cabc_mode_table[0].value = mode;
-            ret = process_lcd_table((struct sequence*)&nt35560_fwvga_write_cabc_mode_table,
+            ret = process_mddi_table((struct sequence*)&nt35560_fwvga_write_cabc_mode_table,
                         ARRAY_SIZE(nt35560_fwvga_write_cabc_mode_table), lcd_panel_fwvga);
-            MDDI_LCD_DEBUG("%s: set cabc mode to %d\n", __func__, mode);
+            LCD_DEBUG("%s: set cabc mode to %d\n", __func__, mode);
             break;
         default:
-            MDDI_LCD_DEBUG("%s: invalid cabc mode: %d\n", __func__, mode);
+            LCD_DEBUG("%s: invalid cabc mode: %d\n", __func__, mode);
             ret = -EINVAL;
             break;
     }
@@ -619,16 +651,13 @@ Parameters:
 Return:
     0: success
 ***************************************************************/
-static int nt35560_set_cabc_brightness(uint32 brightness)
+static void nt35560_set_cabc_brightness(struct msm_fb_data_type *mfd,uint32 bl_level)
 {
-    int ret = 0;
-
-    nt35560_fwvga_write_cabc_brightness_table[0].value = brightness;
-    ret = process_lcd_table((struct sequence*)&nt35560_fwvga_write_cabc_brightness_table,
+    nt35560_fwvga_write_cabc_brightness_table[0].value = bl_level;
+    process_mddi_table((struct sequence*)&nt35560_fwvga_write_cabc_brightness_table,
                     ARRAY_SIZE(nt35560_fwvga_write_cabc_brightness_table), lcd_panel_fwvga);
-
-    return ret;
 }
+/* DTS2011081800466 pengyu 20110818 end >*/
 
 static int nt35560_lcd_on(struct platform_device *pdev)
 {
@@ -649,24 +678,31 @@ static int nt35560_lcd_on(struct platform_device *pdev)
 	/* If exist the init file ,then init lcd with it for debug */
     if( (TRUE == para_debug_flag)&&(NULL != nt35560_fwvga_init_table))
     {
-		ret = process_lcd_table(nt35560_fwvga_init_table, para_num, lcd_panel_fwvga);
+		ret = process_mddi_table(nt35560_fwvga_init_table, para_num, lcd_panel_fwvga);
     }
     else
     {
+/*<DTS2011081002714 jiaoshuangwei 20110810 begin*/
 		if(machine_is_msm8255_u8860lp()
+        /* < DTS2012022905490 ganfan 20120301 begin */
+        || machine_is_msm8255_u8860_r()
+        /* DTS2012022905490 ganfan 20120301 end > */
+/*<DTS2011091502092 liyuping 20110915 begin */
 	    || machine_is_msm8255_u8860_51())
+/* DTS2011091502092 liyuping 20110915 end> */
         {
 			/* Exit Standby Mode */
-			ret = process_lcd_table((struct sequence*)&nt35560_fwvga_standby_exit_tablelp, 
+			ret = process_mddi_table((struct sequence*)&nt35560_fwvga_standby_exit_tablelp, 
 				ARRAY_SIZE(nt35560_fwvga_standby_exit_tablelp), lcd_panel_fwvga);
 	
 	    }
 		else
 		{ 
 			/* Exit Standby Mode */
-			ret = process_lcd_table((struct sequence*)&nt35560_fwvga_standby_exit_table, 
+			ret = process_mddi_table((struct sequence*)&nt35560_fwvga_standby_exit_table, 
 				ARRAY_SIZE(nt35560_fwvga_standby_exit_table), lcd_panel_fwvga);
        	}
+/*DTS2011081002714 jiaoshuangwei 20110810 end >*/
 	}
        
 	/* Must malloc before,then you can call free */
@@ -675,7 +711,7 @@ static int nt35560_lcd_on(struct platform_device *pdev)
 		lcd_debug_free_para((void *)nt35560_fwvga_init_table);
 	}
 	
-    MDDI_LCD_DEBUG("%s: nt35560_lcd exit sleep mode ,on_ret=%d\n",__func__,ret);
+    LCD_DEBUG("%s: nt35560_lcd exit sleep mode ,on_ret=%d\n",__func__,ret);
 	
 	return ret;
 }
@@ -683,9 +719,9 @@ static int nt35560_lcd_off(struct platform_device *pdev)
 {
     int ret = 0;
     /*enter sleep mode*/
-    ret = process_lcd_table((struct sequence*)&nt35560_fwvga_standby_enter_table, 
+    ret = process_mddi_table((struct sequence*)&nt35560_fwvga_standby_enter_table, 
     	      		ARRAY_SIZE(nt35560_fwvga_standby_enter_table), lcd_panel_fwvga);
-    MDDI_LCD_DEBUG("%s: nt35560_lcd enter sleep mode ,off_ret=%d\n",__func__,ret);
+    LCD_DEBUG("%s: nt35560_lcd enter sleep mode ,off_ret=%d\n",__func__,ret);
 	return ret;
 }
 
@@ -705,14 +741,20 @@ static struct platform_driver this_driver = {
 static struct msm_fb_panel_data nt35560_panel_data = {
 	.on = nt35560_lcd_on,
 	.off = nt35560_lcd_off,
-	.set_backlight = lcd_backlight_set,
+    /*< DTS2011070504600  sunhonghui 20110706 begin */
+	.set_backlight = pwm_set_backlight,
+    /*DTS2011070504600  sunhonghui 20110706 end >*/
+/*< DTS2011081601583 pengyu 20110816 begin */
 #ifdef CONFIG_FB_DYNAMIC_GAMMA
     .set_dynamic_gamma = nt35560_set_dynamic_gamma,
 #endif
+/* DTS2011081601583 pengyu 20110816 end >*/
+/*< DTS2011081800466 pengyu 20110818 begin */
 #ifdef CONFIG_FB_AUTO_CABC
     .config_cabc = nt35560_config_cabc,
 #endif
     .set_cabc_brightness = nt35560_set_cabc_brightness,
+/* DTS2011081800466 pengyu 20110818 end >*/
 };
 
 static struct platform_device this_device = {
@@ -727,21 +769,21 @@ static int __init nt35560_init(void)
 	int ret = 0;
 	struct msm_panel_info *pinfo = NULL;
 	bpp_type bpp = MDDI_OUT_16BPP;
-	mddi_type mddi_port_type = mddi_port_type_probe();
+	hw_lcd_interface_type mddi_port_type = get_hw_lcd_interface_type();
 
-	lcd_panel_fwvga=lcd_panel_probe();
+	lcd_panel_fwvga=get_lcd_panel_type();
 	
 	if(LCD_NT35560_TOSHIBA_FWVGA != lcd_panel_fwvga)
 	{
 		return 0;
 	}
-	MDDI_LCD_DEBUG("%s:------nt35560_init------\n",__func__);
+	LCD_DEBUG("%s:------nt35560_init------\n",__func__);
 	/* Select which bpp accroding MDDI port type */
-	if(MDDI_TYPE1 == mddi_port_type)
+	if(LCD_IS_MDDI_TYPE1 == mddi_port_type)
 	{
 		bpp = MDDI_OUT_16BPP;
 	}
-	else if(MDDI_TYPE2 == mddi_port_type)
+	else if(LCD_IS_MDDI_TYPE2 == mddi_port_type)
 	{
 		bpp = MDDI_OUT_24BPP;
 	}
@@ -766,8 +808,9 @@ static int __init nt35560_init(void)
 	    pinfo->clk_min = 192000000;
 	    pinfo->clk_max = 192000000;
         pinfo->lcd.vsync_enable = TRUE;
-        /* change the setting of software frame sync,for test not real frame rate */
+		/*< DTS2012021007223 lijianzhao 20120211 begin */
         pinfo->lcd.refx100 = 6000;
+		/* DTS2012021007223 lijianzhao 20120211 end >*/
 		pinfo->lcd.v_back_porch = 0;
 		pinfo->lcd.v_front_porch = 0;
 		pinfo->lcd.v_pulse_width = 22;
@@ -786,3 +829,4 @@ static int __init nt35560_init(void)
 }
 module_init(nt35560_init);
 
+/* DTS2011042601502  jiaoshuangwei 20110308 end>*/

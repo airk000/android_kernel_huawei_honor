@@ -550,7 +550,6 @@ void vidc_1080p_get_decode_frame_result(
 void vidc_1080p_decode_seq_start_ch0(
 	struct vidc_1080p_dec_seq_start_param *param)
 {
-
 	VIDC_HWIO_OUT(REG_695082, VIDC_1080P_RISC2HOST_CMD_EMPTY);
 	VIDC_HWIO_OUT(REG_666957, VIDC_1080P_INIT_CH_INST_ID);
 	VIDC_HWIO_OUT(REG_117192,
@@ -572,7 +571,6 @@ void vidc_1080p_decode_seq_start_ch0(
 void vidc_1080p_decode_seq_start_ch1(
 	struct vidc_1080p_dec_seq_start_param *param)
 {
-
 	VIDC_HWIO_OUT(REG_695082, VIDC_1080P_RISC2HOST_CMD_EMPTY);
 	VIDC_HWIO_OUT(REG_313350, VIDC_1080P_INIT_CH_INST_ID);
 	VIDC_HWIO_OUT(REG_980194,

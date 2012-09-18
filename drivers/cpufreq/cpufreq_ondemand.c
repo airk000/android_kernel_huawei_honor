@@ -41,7 +41,13 @@
 #define MIN_FREQUENCY_UP_THRESHOLD		(11)
 #define MAX_FREQUENCY_UP_THRESHOLD		(100)
 #define MIN_FREQUENCY_DOWN_DIFFERENTIAL		(1)
-
+/* < DTS2012021302632 lixiangyu 00111074 20120213 begin */
+/* merge DTS2012011904179 */
+/* define the sample rate to 30ms for non-idle state */
+#ifdef CONFIG_HUAWEI_KERNEL
+#define MICRO_FREQUENCY_PREFERED_SAMPLE_RATE (30000)
+#endif
+/* DTS2012021302632 lixiangyu 00111074 20120213 end > */
 /*
  * The polling frequency of this governor depends on the capability of
  * the processor. Default polling frequency is 1000 times the transition
@@ -59,6 +65,9 @@ static unsigned int min_sampling_rate;
 #define LATENCY_MULTIPLIER			(1000)
 #define MIN_LATENCY_MULTIPLIER			(100)
 #define TRANSITION_LATENCY_LIMIT		(10 * 1000 * 1000)
+
+#define POWERSAVE_BIAS_MAXLEVEL			(1000)
+#define POWERSAVE_BIAS_MINLEVEL			(-1000)
 
 static void do_dbs_timer(struct work_struct *work);
 static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
@@ -100,6 +109,9 @@ struct cpu_dbs_info_s {
 };
 static DEFINE_PER_CPU(struct cpu_dbs_info_s, od_cpu_dbs_info);
 
+static inline void dbs_timer_init(struct cpu_dbs_info_s *dbs_info);
+static inline void dbs_timer_exit(struct cpu_dbs_info_s *dbs_info);
+
 static unsigned int dbs_enable;	/* number of CPUs using this policy */
 
 /*
@@ -117,7 +129,7 @@ static struct dbs_tuners {
 	unsigned int down_differential;
 	unsigned int ignore_nice;
 	unsigned int sampling_down_factor;
-	unsigned int powersave_bias;
+	int          powersave_bias;
 	unsigned int io_is_busy;
 } dbs_tuners_ins = {
 	.up_threshold = DEF_FREQUENCY_UP_THRESHOLD,
@@ -179,10 +191,11 @@ static unsigned int powersave_bias_target(struct cpufreq_policy *policy,
 					  unsigned int freq_next,
 					  unsigned int relation)
 {
-	unsigned int freq_req, freq_reduc, freq_avg;
+	unsigned int freq_req, freq_avg;
 	unsigned int freq_hi, freq_lo;
 	unsigned int index = 0;
 	unsigned int jiffies_total, jiffies_hi, jiffies_lo;
+	int freq_reduc;
 	struct cpu_dbs_info_s *dbs_info = &per_cpu(od_cpu_dbs_info,
 						   policy->cpu);
 
@@ -225,6 +238,26 @@ static unsigned int powersave_bias_target(struct cpufreq_policy *policy,
 	return freq_hi;
 }
 
+static int ondemand_powersave_bias_setspeed(struct cpufreq_policy *policy,
+					    struct cpufreq_policy *altpolicy,
+					    int level)
+{
+	if (level == POWERSAVE_BIAS_MAXLEVEL) {
+		/* maximum powersave; set to lowest frequency */
+		__cpufreq_driver_target(policy,
+			(altpolicy) ? altpolicy->min : policy->min,
+			CPUFREQ_RELATION_L);
+		return 1;
+	} else if (level == POWERSAVE_BIAS_MINLEVEL) {
+		/* minimum powersave; set to highest frequency */
+		__cpufreq_driver_target(policy,
+			(altpolicy) ? altpolicy->max : policy->max,
+			CPUFREQ_RELATION_H);
+		return 1;
+	}
+	return 0;
+}
+
 static void ondemand_powersave_bias_init_cpu(int cpu)
 {
 	struct cpu_dbs_info_s *dbs_info = &per_cpu(od_cpu_dbs_info, cpu);
@@ -263,7 +296,12 @@ show_one(up_threshold, up_threshold);
 show_one(down_differential, down_differential);
 show_one(sampling_down_factor, sampling_down_factor);
 show_one(ignore_nice_load, ignore_nice);
-show_one(powersave_bias, powersave_bias);
+
+static ssize_t show_powersave_bias
+(struct kobject *kobj, struct attribute *attr, char *buf)
+{
+	return snprintf(buf, PAGE_SIZE, "%d\n", dbs_tuners_ins.powersave_bias);
+}
 
 static ssize_t store_sampling_rate(struct kobject *a, struct attribute *b,
 				   const char *buf, size_t count)
@@ -378,18 +416,75 @@ static ssize_t store_ignore_nice_load(struct kobject *a, struct attribute *b,
 static ssize_t store_powersave_bias(struct kobject *a, struct attribute *b,
 				    const char *buf, size_t count)
 {
-	unsigned int input;
-	int ret;
-	ret = sscanf(buf, "%u", &input);
+	int input  = 0;
+	int bypass = 0;
+	int ret, cpu, reenable_timer;
+	struct cpu_dbs_info_s *dbs_info;
+
+	ret = sscanf(buf, "%d", &input);
 
 	if (ret != 1)
 		return -EINVAL;
 
-	if (input > 1000)
-		input = 1000;
+	if (input >= POWERSAVE_BIAS_MAXLEVEL) {
+		input  = POWERSAVE_BIAS_MAXLEVEL;
+		bypass = 1;
+	} else if (input <= POWERSAVE_BIAS_MINLEVEL) {
+		input  = POWERSAVE_BIAS_MINLEVEL;
+		bypass = 1;
+	}
+
+	if (input == dbs_tuners_ins.powersave_bias) {
+		/* no change */
+		return count;
+	}
+
+	reenable_timer = ((dbs_tuners_ins.powersave_bias ==
+				POWERSAVE_BIAS_MAXLEVEL) ||
+				(dbs_tuners_ins.powersave_bias ==
+				POWERSAVE_BIAS_MINLEVEL));
 
 	dbs_tuners_ins.powersave_bias = input;
-	ondemand_powersave_bias_init();
+	if (!bypass) {
+		if (reenable_timer) {
+			/* reinstate dbs timer */
+			for_each_online_cpu(cpu) {
+				if (lock_policy_rwsem_write(cpu) < 0)
+					continue;
+
+				dbs_info = &per_cpu(od_cpu_dbs_info, cpu);
+				if (dbs_info->cur_policy) {
+					/* restart dbs timer */
+					dbs_timer_init(dbs_info);
+				}
+				unlock_policy_rwsem_write(cpu);
+			}
+		}
+		ondemand_powersave_bias_init();
+	} else {
+		/* running at maximum or minimum frequencies; cancel
+		   dbs timer as periodic load sampling is not necessary */
+		for_each_online_cpu(cpu) {
+			if (lock_policy_rwsem_write(cpu) < 0)
+				continue;
+
+			dbs_info = &per_cpu(od_cpu_dbs_info, cpu);
+			if (dbs_info->cur_policy) {
+				/* cpu using ondemand, cancel dbs timer */
+				mutex_lock(&dbs_info->timer_mutex);
+				dbs_timer_exit(dbs_info);
+
+				ondemand_powersave_bias_setspeed(
+					dbs_info->cur_policy,
+					NULL,
+					input);
+
+				mutex_unlock(&dbs_info->timer_mutex);
+			}
+			unlock_policy_rwsem_write(cpu);
+		}
+	}
+
 	return count;
 }
 
@@ -417,6 +512,51 @@ static struct attribute_group dbs_attr_group = {
 	.attrs = dbs_attributes,
 	.name = "ondemand",
 };
+
+/* < DTS2012021302632 lixiangyu 00111074 20120213 begin */
+/* merge DTS2012011904179 */
+#ifdef CONFIG_HUAWEI_KERNEL
+/* set sample rate according to the input parameter screen_on:
+   1: set sample rate to non-idle state value, namely 30ms
+   0: set sample rate to idle state value, namely 50ms
+*/
+void set_sampling_rate(int screen_on)
+{
+    char *buff_on = "30000";
+    char *buff_off= "50000";
+
+    if(1 == screen_on)
+    {
+        store_sampling_rate(NULL, NULL, buff_on, strlen(buff_on));
+    }
+    else
+    {
+        store_sampling_rate(NULL, NULL, buff_off, strlen(buff_off));
+    }
+}
+EXPORT_SYMBOL(set_sampling_rate);
+
+/* set threshold according to the input parameter screen_on:
+   1: set up_threshold to non-idle state value, namely 80%
+   0: set up_threshold to idle state value, namely 95%
+*/
+void set_up_threshold(int screen_on)
+{
+    char *buff_on = "80";
+    char *buff_off= "95";
+
+    if(1 == screen_on)
+    {
+        store_up_threshold(NULL, NULL, buff_on, strlen(buff_on));
+    }
+    else
+    {
+        store_up_threshold(NULL, NULL, buff_off, strlen(buff_off));
+    }
+}
+EXPORT_SYMBOL(set_up_threshold);
+#endif
+/* DTS2012021302632 lixiangyu 00111074 20120213 end > */
 
 /************************** sysfs end ************************/
 
@@ -680,10 +820,17 @@ static void dbs_input_event(struct input_handle *handle, unsigned int type,
 {
 	int i;
 
+	if ((dbs_tuners_ins.powersave_bias == POWERSAVE_BIAS_MAXLEVEL) ||
+		(dbs_tuners_ins.powersave_bias == POWERSAVE_BIAS_MINLEVEL)) {
+		/* nothing to do */
+		return;
+	}
+
 	for_each_online_cpu(i) {
 		queue_work_on(i, input_wq, &per_cpu(dbs_refresh_work, i));
 	}
 }
+/*< DTS2011090703123 pengyu 20110907 begin */
 
 #ifdef CONFIG_HUAWEI_KERNEL
 /* Filter some input devices which we don't care */
@@ -701,17 +848,20 @@ static int input_dev_filter(const char* input_dev_name)
     return ret;
 }
 #endif
+/* DTS2011090703123 pengyu 20110907 end >*/
 
 static int dbs_input_connect(struct input_handler *handler,
 		struct input_dev *dev, const struct input_device_id *id)
 {
 	struct input_handle *handle;
 	int error;
+/*< DTS2011090703123 pengyu 20110907 begin */
 #ifdef CONFIG_HUAWEI_KERNEL
     /* Filter out those input_dev that we don't care */
     if (input_dev_filter(dev->name))
         return 0;
 #endif
+/* DTS2011090703123 pengyu 20110907 end >*/
 
 	handle = kzalloc(sizeof(struct input_handle), GFP_KERNEL);
 	if (!handle)
@@ -811,9 +961,16 @@ static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 			/* Bring kernel and HW constraints together */
 			min_sampling_rate = max(min_sampling_rate,
 					MIN_LATENCY_MULTIPLIER * latency);
-			dbs_tuners_ins.sampling_rate =
+			/* < DTS2012021302632 lixiangyu 00111074 20120213 begin */
+			/* merge DTS2012011904179 */
+#ifdef CONFIG_HUAWEI_KERNEL
+			dbs_tuners_ins.sampling_rate = MICRO_FREQUENCY_PREFERED_SAMPLE_RATE;
+#else
+			dbs_tuners_ins.sampling_rate = 
 				max(min_sampling_rate,
 				    latency * LATENCY_MULTIPLIER);
+#endif
+			/* DTS2012021302632 lixiangyu 00111074 20120213 end > */
 			dbs_tuners_ins.io_is_busy = should_io_be_busy();
 		}
 		if (!cpu)
@@ -821,7 +978,12 @@ static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 		mutex_unlock(&dbs_mutex);
 
 		mutex_init(&this_dbs_info->timer_mutex);
-		dbs_timer_init(this_dbs_info);
+
+		if (!ondemand_powersave_bias_setspeed(
+					this_dbs_info->cur_policy,
+					NULL,
+					dbs_tuners_ins.powersave_bias))
+			dbs_timer_init(this_dbs_info);
 		break;
 
 	case CPUFREQ_GOV_STOP:
@@ -830,6 +992,9 @@ static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 		mutex_lock(&dbs_mutex);
 		mutex_destroy(&this_dbs_info->timer_mutex);
 		dbs_enable--;
+		/* If device is being removed, policy is no longer
+		 * valid. */
+		this_dbs_info->cur_policy = NULL;
 		if (!cpu)
 			input_unregister_handler(&dbs_input_handler);
 		mutex_unlock(&dbs_mutex);
@@ -847,6 +1012,11 @@ static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 		else if (policy->min > this_dbs_info->cur_policy->cur)
 			__cpufreq_driver_target(this_dbs_info->cur_policy,
 				policy->min, CPUFREQ_RELATION_L);
+		else if (dbs_tuners_ins.powersave_bias != 0)
+			ondemand_powersave_bias_setspeed(
+				this_dbs_info->cur_policy,
+				policy,
+				dbs_tuners_ins.powersave_bias);
 		mutex_unlock(&this_dbs_info->timer_mutex);
 		break;
 	}
@@ -864,7 +1034,13 @@ static int __init cpufreq_gov_dbs_init(void)
 	put_cpu();
 	if (idle_time != -1ULL) {
 		/* Idle micro accounting is supported. Use finer thresholds */
+		/* < DTS2012021302632 lixiangyu 00111074 20120213 begin */
+		/* merge DTS2012011904179 */
+		/* use the initialized value */
+#ifndef CONFIG_HUAWEI_KERNEL
 		dbs_tuners_ins.up_threshold = MICRO_FREQUENCY_UP_THRESHOLD;
+#endif
+		/* DTS2012021302632 lixiangyu 00111074 20120213 end > */
 		dbs_tuners_ins.down_differential =
 					MICRO_FREQUENCY_DOWN_DIFFERENTIAL;
 		/*

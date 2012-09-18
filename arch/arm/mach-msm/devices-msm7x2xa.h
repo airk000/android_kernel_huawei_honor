@@ -1,4 +1,4 @@
-/* Copyright (c) 2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -19,4 +19,11 @@ void __init msm_common_io_init(void);
 void __init msm_init_pmic_vibrator(void);
 void __init msm7x25a_kgsl_3d0_init(void);
 int __init msm7x2x_misc_init(void);
+/*< DTS2012041800928 yuanmingming 20120418 begin */
+int  ar600x_wlan_power(bool on);
+/* DTS2012041800928  yuanmingming 20120418 end > */
+extern struct platform_device msm7x27a_device_vfe;
+extern struct platform_device msm7x27a_device_csic0;
+extern struct platform_device msm7x27a_device_csic1;
+extern struct platform_device msm7x27a_device_clkctl;
 #endif

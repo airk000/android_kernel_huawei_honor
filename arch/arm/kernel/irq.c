@@ -35,8 +35,8 @@
 #include <linux/list.h>
 #include <linux/kallsyms.h>
 #include <linux/proc_fs.h>
-#include <linux/ftrace.h>
 
+#include <asm/exception.h>
 #include <asm/system.h>
 #include <asm/mach/arch.h>
 #include <asm/mach/irq.h>
@@ -60,9 +60,6 @@ int arch_show_interrupts(struct seq_file *p, int prec)
 #endif
 #ifdef CONFIG_SMP
 	show_ipi_list(p, prec);
-#endif
-#ifdef CONFIG_LOCAL_TIMERS
-	show_local_irqs(p, prec);
 #endif
 	seq_printf(p, "%*s: %10lu\n", prec, "Err", irq_err_count);
 	return 0;
@@ -114,7 +111,7 @@ void set_irq_flags(unsigned int irq, unsigned int iflags)
 {
 	unsigned long clr = 0, set = IRQ_NOREQUEST | IRQ_NOPROBE | IRQ_NOAUTOEN;
 
-	if (irq >= nr_irqs) {
+	if (irq >= NR_IRQS) {
 		printk(KERN_ERR "Trying to set irq flags for IRQ%d\n", irq);
 		return;
 	}

@@ -2,7 +2,7 @@
  *
  * Copyright (C) 2008 Google, Inc.
  * Author: Brian Swetland <swetland@google.com>
- * Copyright (c) 2009-2011, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2009-2012, Code Aurora Forum. All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -149,31 +149,38 @@ enum usb_bam_pipe_dir {
  *              for msm_otg driver.
  * @phy_init_seq: PHY configuration sequence. val, reg pairs
  *              terminated by -1.
- * @vbus_power: VBUS power on/off routine.
+ * @vbus_power: VBUS power on/off routine.It should return result
+ *		as success(zero value) or failure(non-zero value).
  * @power_budget: VBUS power budget in mA (0 will be treated as 500mA).
  * @mode: Supported mode (OTG/peripheral/host).
  * @otg_control: OTG switch controlled by user/Id pin
  * @default_mode: Default operational mode. Applicable only if
  *              OTG switch is controller by user.
- * @pclk_src_name: pclk is derived from ebi1_usb_clk in case of 7x27 and 8k
- *              dfab_usb_hs_clk in case of 8660 and 8960.
  * @pmic_id_irq: IRQ number assigned for PMIC USB ID line.
  * @mhl_enable: indicates MHL connector or not.
+ * @disable_reset_on_disconnect: perform USB PHY and LINK reset
+ *              on USB cable disconnection.
  * @swfi_latency: miminum latency to allow swfi.
+ * @enable_dcd: Enable Data Contact Detection circuit. if not set
+ *              wait for 600msec before proceeding to primary
+ *              detection.
+ * @bus_scale_table: parameters for bus bandwidth requirements
  */
 struct msm_otg_platform_data {
 	int *phy_init_seq;
-	void (*vbus_power)(bool on);
+	int (*vbus_power)(bool on);
 	unsigned power_budget;
 	enum usb_mode_type mode;
 	enum otg_control_type otg_control;
 	enum usb_mode_type default_mode;
 	enum msm_usb_phy_type phy_type;
 	void (*setup_gpio)(enum usb_otg_state state);
-	const char *pclk_src_name;
 	int pmic_id_irq;
 	bool mhl_enable;
+	bool disable_reset_on_disconnect;
 	u32 swfi_latency;
+	bool enable_dcd;
+	struct msm_bus_scale_pdata *bus_scale_table;
 };
 
 /**
@@ -181,12 +188,10 @@ struct msm_otg_platform_data {
  * @otg: USB OTG Transceiver structure.
  * @pdata: otg device platform data.
  * @irq: IRQ number assigned for HSUSB controller.
- * @clk: clock struct of usb_hs_clk.
- * @pclk: clock struct of usb_hs_pclk.
- * @pclk_src: pclk source for voting.
- * @phy_reset_clk: clock struct of usb_phy_clk.
- * @core_clk: clock struct of usb_hs_core_clk.
- * @system_clk: clock struct of usb_system_clk.
+ * @clk: clock struct of alt_core_clk.
+ * @pclk: clock struct of iface_clk.
+ * @phy_reset_clk: clock struct of phy_clk.
+ * @core_clk: clock struct of core_bus_clk.
  * @regs: ioremapped register base address.
  * @inputs: OTG state machine inputs(Id, SessValid etc).
  * @sm_work: OTG state machine work.
@@ -208,6 +213,7 @@ struct msm_otg_platform_data {
 	collapse when cable is connected.
  * @id_timer: The timer used for polling ID line to detect ACA states.
  * @xo_handle: TCXO buffer handle
+ * @bus_perf_client: Bus performance client handle to request BUS bandwidth
  */
 struct msm_otg {
 	struct otg_transceiver otg;
@@ -215,10 +221,8 @@ struct msm_otg {
 	int irq;
 	struct clk *clk;
 	struct clk *pclk;
-	struct clk *pclk_src;
 	struct clk *phy_reset_clk;
 	struct clk *core_clk;
-	struct clk *system_clk;
 	void __iomem *regs;
 #define ID		0
 #define B_SESS_VLD	1
@@ -240,6 +244,7 @@ struct msm_otg {
 	struct timer_list id_timer;
 	unsigned long caps;
 	struct msm_xo_voter *xo_handle;
+	uint32_t bus_perf_client;
 	/*
 	 * Allowing PHY power collpase turns off the HSUSB 3.3v and 1.8v
 	 * analog regulators while going to low power mode.
@@ -263,6 +268,7 @@ struct msm_otg {
 #define PHY_RETENTIONED			BIT(1)
 #define PHY_OTG_COMP_DISABLED		BIT(2)
 	struct pm_qos_request_list pm_qos_req_dma;
+	int reset_counter;
 };
 
 struct msm_hsic_host_platform_data {
