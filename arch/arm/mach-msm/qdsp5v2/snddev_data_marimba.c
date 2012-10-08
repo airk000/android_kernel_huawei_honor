@@ -208,10 +208,10 @@ static struct snddev_icodec_data snddev_iearpiece_data_u8800_51 = {
 	.pamp_on = NULL,
 	.pamp_off = NULL,
 	.property = SIDE_TONE_MASK,
-	.max_voice_rx_vol[VOC_NB_INDEX] = -200,
-	.min_voice_rx_vol[VOC_NB_INDEX] = -1700,
-	.max_voice_rx_vol[VOC_WB_INDEX] = -200,
-	.min_voice_rx_vol[VOC_WB_INDEX] = -1700
+	.max_voice_rx_vol[VOC_NB_INDEX] = 800,
+	.min_voice_rx_vol[VOC_NB_INDEX] = -700,
+	.max_voice_rx_vol[VOC_WB_INDEX] = 800,
+	.min_voice_rx_vol[VOC_WB_INDEX] = -700
 };
 /* DTS2012072504870 caiying 20120725 end >*/
 static struct platform_device msm_iearpiece_device_u8800_51 = {
@@ -667,10 +667,10 @@ static struct snddev_icodec_data snddev_ihs_stereo_rx_data_u8800_51 = {
 	.default_sample_rate = 48000,
 	.pamp_on = msm_snddev_hsed_voltage_on,
 	.pamp_off = msm_snddev_hsed_voltage_off,
-	.max_voice_rx_vol[VOC_NB_INDEX] = -300, 
-	.min_voice_rx_vol[VOC_NB_INDEX] = -1800, 
-	.max_voice_rx_vol[VOC_WB_INDEX] = -500, 
-	.min_voice_rx_vol[VOC_WB_INDEX] = -2000 
+	.max_voice_rx_vol[VOC_NB_INDEX] = 400, 
+	.min_voice_rx_vol[VOC_NB_INDEX] = -1100,
+	.max_voice_rx_vol[VOC_WB_INDEX] = 400, 
+	.min_voice_rx_vol[VOC_WB_INDEX] = -1100
 };
 /* DTS2012072504870 caiying 20120725 end >*/
 static struct platform_device msm_ihs_stereo_rx_device_u8800_51 = {
@@ -1411,10 +1411,10 @@ static struct snddev_icodec_data snddev_ispeaker_rx_data_u8800_51 = {
 	.default_sample_rate = 48000,
 	.pamp_on = &msm_snddev_poweramp_on,
 	.pamp_off = &msm_snddev_poweramp_off,
-	.max_voice_rx_vol[VOC_NB_INDEX] = 200, 
-	.min_voice_rx_vol[VOC_NB_INDEX] = -1300, 
-	.max_voice_rx_vol[VOC_WB_INDEX] = 200, 
-	.min_voice_rx_vol[VOC_WB_INDEX] = -1300  
+	.max_voice_rx_vol[VOC_NB_INDEX] = 500,
+	.min_voice_rx_vol[VOC_NB_INDEX] = -1000,
+	.max_voice_rx_vol[VOC_WB_INDEX] = 500,
+	.min_voice_rx_vol[VOC_WB_INDEX] = -1000 
 };
 /* DTS2012072504870 caiying 20120725 end >*/
 static struct platform_device msm_ispeaker_rx_device_u8800_51 = {
