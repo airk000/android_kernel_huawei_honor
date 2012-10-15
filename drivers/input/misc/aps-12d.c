@@ -1105,20 +1105,30 @@ static int aps_12d_resume(struct i2c_client *client)
 	/* write reg value for the two device */
 	if(EVERLIGHT == intersil_flag)
 	{
+	    ret=-1;
+    	for(i=0;i<10 && ret!=0;i++) {
 		ret = aps_i2c_reg_write(aps, APS_12D_REG_CMD2, \
 					(uint8_t)(APS_12D_IRDR_SEL_50MA << 6 | \
 										APS_12D_FREQ_SEL_DC << 4 | \
 										APS_12D_RES_SEL_12 << 2 | \
 										APS_12D_RANGE_SEL_ALS_1000));
+	    printk("aps_12d_probe try %d\n",i);
+		mdelay(5);
+		}
 	}
 	else 
 	{
+	    ret=-1;
+    	for(i=0;i<10 && ret!=0;i++) {
 		ret = aps_i2c_reg_write(aps, APS_12D_REG_CMD2, \
 					(uint8_t)(APS_12D_IRDR_SEL_INTERSIL_50MA << 4 | \
 										APS_FREQ_INTERSIL_DC << 6 | \
 										APS_ADC_12 << 2 | \
 										APS_INTERSIL_SCHEME_OFF| \
 										APS_12D_RANGE_SEL_ALS_1000));
+	    printk("aps_12d_probe try %d\n",i);
+		mdelay(5);
+		}
 	}
 	/* DTS2012050900892 yangbo 20120509 end > */
 	hrtimer_start(&aps->timer, ktime_set(1, 0), HRTIMER_MODE_REL);
