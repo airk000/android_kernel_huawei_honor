@@ -30,18 +30,12 @@
 #include <linux/ctype.h>
 #include <linux/earlysuspend.h>
 #include <mach/gpio.h>
-/* < DTS2010070200975 zhangtao 20100702 begin */
 #include <mach/vreg.h>
-/* DTS2010070200975 zhangtao 20100702 end > */
-/* < DTS2011052606009 jiaxianghong 20110527 begin */
-/* <DTS2011032104626 shenjinming 20110321 begin */
+
 #ifdef CONFIG_HUAWEI_HW_DEV_DCT
 #include <linux/hw_dev_dec.h>
 #endif
-/* DTS2011032104626 shenjinming 20110321 end> */
-/* <DTS2010120100623 shenjinming 20101201 begin */
 #include <asm/mach-types.h>
-/* DTS2010120100623 shenjinming 20101201 end> */ 
 /*
  * DEBUG SWITCH
  *
@@ -55,7 +49,6 @@
 #define TS_DEBUG_TS(fmt, args...)
 #endif
 
-/* < DTS2010091703205 zhangtao 20101007 begin */
 /*use this to contrl the debug message*/
 static int atmel_debug_mask;
 module_param_named(atmel_debug, atmel_debug_mask, int,
@@ -66,10 +59,6 @@ module_param_named(atmel_debug, atmel_debug_mask, int,
 		printk(KERN_DEBUG x);\
 	} while (0)
 
-/* DTS2010091703205 zhangtao 20101007 end > */
-
-
-/*<BU5D09283 luojianhong 20100506 begin*/
 #undef TOUCH_12BIT
 #ifdef TOUCH_12BIT
 #define TS_X_MAX 4095
@@ -148,9 +137,7 @@ typedef struct {
 	bool                bSentPress;                  
 	bool                touch_region_first;           /* to record first touch event*/
 } RECORD_EXTRA_KEYCODE;
-/* < DTS2010072101964 liujinggang 20100721 begin */
 /*modify the value of HOME key*/ 
-/* < DTS2010061700562 zhangtao 20100618 begin */
 /* to init extra region and touch virt key region */
 static extra_key_region   touch_extra_key_region =
 {
@@ -167,9 +154,6 @@ static extra_key_region   touch_extra_key_region =
 /* to record the key pressed */
 //static RECORD_EXTRA_KEYCODE  record_extra_keycode = {KEY_RESERVED, TRUE, TRUE, FALSE};
 #endif
-/*<BU5D09283 luojianhong 20100506 end*/
-/* DTS2010061700562 zhangtao 20100618 end > */
-/* DTS2010072101964 liujinggang 20100721 end > */
 
 #define LCD_X_MAX 479
 #define ATMEL_FAMILY_ID 0x80
@@ -211,9 +195,7 @@ extern uint8_t i2c_addresses[];
 #define GEN_MESSAGEPROCESSOR_T5 5
 #define GEN_COMMANDPROCESSOR_T6 6
 #define GEN_POWERCONFIG_T7 7
-/* < DTS2010062400225 zhangtao 20100624 begin */
 #define T7_INSTANCE 0
-/* DTS2010062400225 zhangtao 20100624 end > */
 #define GEN_ACQUISITIONCONFIG_T8 8
 
 #define TOUCH_MULTITOUCHSCREEN_T9 9
@@ -223,9 +205,7 @@ extern uint8_t i2c_addresses[];
 #define PROCG_GRIPFACESUPPRESSION_T20 20
 #define PROCG_NOISESUPPRESSION_T22 22
 
-/* < DTS2010083103149 zhangtao 20100909 begin */
 #define TOUCH_PROXIMITY_T23 23
-/* DTS2010083103149 zhangtao 20100909 end > */
 
 #define PROCI_ONETOUCHGESTUREPROCESSOR_T24 24
 #define SPT_SELFTEST_T25 25
@@ -241,9 +221,7 @@ extern uint8_t i2c_addresses[];
 #define KEY_NUHBER2 0x2
 #define KEY_NUHBER3 0x4
 #define KEY_NUHBER4 0x8
-/* < DTS2010070200975 zhangtao 20100702 begin */
 /* delete some lines which is not needed anymore*/
-/* DTS2010070200975 zhangtao 20100702 end > */
 
 struct info_id_t {
 	u8 family_id;
@@ -307,7 +285,6 @@ u16 debug_diagnostic_address;
 /*! Message buffer holding the latest message received. */
 u8 *touch_msg = NULL;
 
-/* < DTS2010083103149 zhangtao 20100909 begin */
 static uint32_t timer_tick = 0;
 
 static u8 atmel_timer = 0;
@@ -316,11 +293,8 @@ static u8 atmel_timer = 0;
 
 #define DISABLE 0
 
-/* < DTS2011062404739 cuiyu 20110624 begin */
 static uint32_t resume_time = 0;
 static u8 cal_check_flag = 1; 
-/* DTS2011062404739 cuiyu 20110624 end > */
-/* DTS2010083103149 zhangtao 20100909 end > */
 
 /* Unique ID allocation */
 static struct i2c_client *g_client;
@@ -344,14 +318,10 @@ struct atmel_ts_data {
 	int touch_y;
 	int touchamplitude;
 	int sizeoftouch;
-/*<BU5D09839 luojianhong 20100513 begin*/
 	bool is_support_multi_touch; //multi_touch function switch
-/*<BU5D09839 luojianhong 20100513 end*/
-/*<BU5D09283 luojianhong 20100506 begin*/
 #ifdef CONFIG_HUAWEI_TOUCHSCREEN_EXTRA_KEY
 	struct input_dev *key_input;
 #endif
-/*<BU5D09283 luojianhong 20100506 end*/
 
        struct early_suspend early_suspend;
 };
@@ -360,10 +330,8 @@ struct atmel_ts_data {
 static void atmel_ts_early_suspend(struct early_suspend *h);
 static void atmel_ts_late_resume(struct early_suspend *h);
 #endif
-/* < DTS2010083103149 zhangtao 20100909 begin */
 
 void cal_maybe_good(void);
-/* DTS2010083103149 zhangtao 20100909 end > */
 
 static int atmel_ts_power(struct i2c_client *client, int on);
 
@@ -793,7 +761,6 @@ static u8 get_object_size(u8 object_type)
  * 
  */
 
-/* < DTS2010062400225 zhangtao 20100624 begin */
 int write_power_config(int on)
 {
 	u16 object_address;
@@ -824,17 +791,9 @@ int write_power_config(int on)
 	memset(tmp, 0, object_size);
     if(on)
     {
-        /*<BU5D09839 luojianhong 20100513 begin*/
 	    *(tmp + 0) = 50; //0xff//Idle Acquisition
-/* < DTS2010083103149 zhangtao 20100909 begin */
-		/* < DTS2011042106137 zhangtao 20110509 begin */
-        /* < DTS2011062404739 cuiyu 20110624 begin */
-	    *(tmp + 1) = 16; //0xff//Active Acquisition
-        /* DTS2011062404739 cuiyu 20110624 end > */
-		/* DTS2011042106137 zhangtao 20110509 end > */
-/* DTS2010083103149 zhangtao 20100909 end > */
+	    *(tmp + 1) = 14; //0xff//Active Acquisition
 	    *(tmp + 2) = 50; //0x32//Active to Idle Timeout
-        /*<BU5D09839 luojianhong 20100513 end*/
     }
     else
     {
@@ -848,7 +807,6 @@ int write_power_config(int on)
 	
 	return 0;
 }
-/* DTS2010062400225 zhangtao 20100624 end > */
 
 /*!
  * \brief Writes power config. 
@@ -859,7 +817,6 @@ int write_power_config(int on)
  * 
  */
 
-/* < DTS2010083103149 zhangtao 20100909 begin */
 int write_acquisition_config(u8 instance,int flag)
 {
 	u16 object_address;
@@ -889,13 +846,7 @@ int write_acquisition_config(u8 instance,int flag)
 	}
 	memset(tmp, 0, object_size);
     
-/* < DTS2010062400225 zhangtao 20100624 begin */
-/* delete some lines. */
-/* DTS2010062400225 zhangtao 20100624 end > */
-/*<BU5D09283 luojianhong 20100506 begin*/
-/* < DTS2010073101113 zhangtao 20100819 begin */
 	*(tmp + 0) = 8; //chrgtime
-/* DTS2010073101113 zhangtao 20100819 end > */
 	*(tmp + 1) = 5; //Reserved
 	*(tmp + 2) = 5; //tchdrift
 	*(tmp + 3) = 10; //driftst
@@ -903,12 +854,9 @@ int write_acquisition_config(u8 instance,int flag)
 	*(tmp + 5) = 0; //sync
 	if(0 == flag)
     {
-        /* < DTS2011062404739 cuiyu 20110624 begin */	
         /* shut down calibration */
-    	*(tmp + 6) = 0; //0x0a//ATCHCALST
-    	*(tmp + 7) = 1; //0x0f//ATCHCALSTHR
-        /* DTS2011062404739 cuiyu 20110624 end > */
-/*<BU5D09283 luojianhong 20100506 end*/
+    	*(tmp + 6) = 5; //0x0a//ATCHCALST
+    	*(tmp + 7) = 40; //0x0f//ATCHCALSTHR
     }
     else 
     {
@@ -923,7 +871,6 @@ int write_acquisition_config(u8 instance,int flag)
 	
 	return 0;
 }
-/* DTS2010083103149 zhangtao 20100909 end > */
 
 /*!
  * \brief read multitouchscreen config. 
@@ -992,7 +939,6 @@ int read_multitouchscreen_config(u8 instance)
  * 
  */
 
-/* < DTS2010083103149 zhangtao 20100909 begin */
 int write_multitouchscreen_config(u8 instance,int flag)
 {
 	u16 object_address = 0;
@@ -1021,43 +967,29 @@ int write_multitouchscreen_config(u8 instance,int flag)
 	}
 	memset(tmp, 0, object_size);
 	
-/* < DTS2010062400225 zhangtao 20100624 begin */
-/* delete some lines. */
-/* DTS2010062400225 zhangtao 20100624 end > */
-/*<BU5D09283 luojianhong 20100506 begin*/
-/*<BU5D09839 luojianhong 20100513 begin*/
-/* < DTS2010073101113 zhangtao 20100819 begin */
 	*(tmp + 0) = 139; //0x83//ctrl
-/*<BU5D09839 luojianhong 20100513 end*/
 	*(tmp + 1) = 0; //xorigin
 	*(tmp + 2) = 0; //yorigin
 	*(tmp + 3) = 17; //xsize
 	*(tmp + 4) = 12; //ysize
 	*(tmp + 5) = 0; //akscfg
 	*(tmp + 6) = 17; //blen
-/*<BU5D09839 luojianhong 20100513 begin*/
     if(0 == flag)
     {
-        /* < DTS2011062404739 cuiyu 20110624 begin */
         /* effect atch vaule */
-    	*(tmp + 7) = 20; //0x1d; //tchthr
-        /* DTS2011062404739 cuiyu 20110624 end > */
+    	*(tmp + 7) = 50; //0x1d; //tchthr
     }
     else
     {
         *(tmp + 7) = 50; //0x1d; //tchthr
 
     }
-/*<BU5D09839 luojianhong 20100513 end*/
-/* < DTS2010110401166 zhangtao 20101104 begin */
 	*(tmp + 8) = 2; //tchdi
 	*(tmp + 9) = 1; //orientate
 	*(tmp + 10) = 0; //mrgtimeout
 	*(tmp + 11) = 3; //movhysti
-	/* < DTS2011042106137 zhangtao 20110509 begin */
 	/*  make the point report every pix */
 	*(tmp + 12) = 1; //movhystn
-	/* DTS2011042106137 zhangtao 20110509 end > */
 	*(tmp + 13) = 0;//0x2e; //movfilter
 	*(tmp + 14) = 2; //numtouch
 	*(tmp + 15) = 10; //mrghyst
@@ -1075,9 +1007,6 @@ int write_multitouchscreen_config(u8 instance,int flag)
 	*(tmp + 27) = 10; //xedgedist
 	*(tmp + 28) = 139; //yedgectrl
 	*(tmp + 29) = 30; //yedgedist
-/* DTS2010110401166 zhangtao 20101104 end > */
-/* DTS2010073101113 zhangtao 20100819 end > */
-/*<BU5D09283 luojianhong 20100506 end*/
 
 	write_mem(object_address, object_size, tmp);
 
@@ -1085,7 +1014,6 @@ int write_multitouchscreen_config(u8 instance,int flag)
 
 	return 0;
 }
-/* DTS2010083103149 zhangtao 20100909 end > */
 
 /*!
  * \brief Writes keyarray config. 
@@ -1188,12 +1116,8 @@ int write_gripfacesuppression_config(u8 instance)
 	}
 	memset(tmp, 0, object_size);
 
-/* < DTS2010083103149 zhangtao 20100909 begin */
-	/* < DTS2011042106137 zhangtao 20110509 begin */
 	/* turn off the fripfacesuppression */
 	*(tmp + 0) = 0x00; //0x05; //ctrl
-	/* DTS2011042106137 zhangtao 20110509 end > */
-/* < DTS2010073101113 zhangtao 20100819 begin */
 	*(tmp + 1) = 0; //xlogrip
 	*(tmp + 2) = 0; //xhigrip
 	*(tmp + 3) = 0; //ylogrip
@@ -1205,8 +1129,6 @@ int write_gripfacesuppression_config(u8 instance)
 	*(tmp + 9) = 4; //shpthr1
 	*(tmp + 10) = 35; //shpthr2
 	*(tmp + 11) = 10; //supextto
-/* DTS2010073101113 zhangtao 20100819 end > */
-/* DTS2010083103149 zhangtao 20100909 end > */
 
 	write_mem(object_address, object_size, tmp);
 
@@ -1259,16 +1181,12 @@ int write_noisesuppression_config(u8 instance)
 	*(tmp + 0) = 0x05; //0x05; //ctrl
 	*(tmp + 1) = 0; //reserved
 	*(tmp + 2) = 0; //reserved
-/*<BU5D09839 luojianhong 20100513 begin*/
-/* < DTS2010110401166 zhangtao 20101104 begin */
 	*(tmp + 3) = 0x19; //GCAFUL
 	*(tmp + 4) = 0x00; //GCAFUL
 	*(tmp + 5) = 0xe7; //GCAFLL
 	*(tmp + 6) = 0xff; //GCAFLL
 	*(tmp + 7) = 4; //actvgcafvalid
-    /* < DTS2011062404739 cuiyu 20110624 begin */
 	*(tmp + 8) = 30; //noisethr
-    /* DTS2011062404739 cuiyu 20110624 end > */
 	*(tmp + 9) = 0; //reserved
 	*(tmp + 10) = 0; //freqhopscale
 	*(tmp + 11) = 4; //freq burst0
@@ -1277,8 +1195,6 @@ int write_noisesuppression_config(u8 instance)
 	*(tmp + 14) = 255; //freq burst3
 	*(tmp + 15) = 255; //freq burst4
 	*(tmp + 16) = 4; //idlegcafvalid
-/* DTS2010110401166 zhangtao 20101104 end > */
-/*<BU5D09839 luojianhong 20100513 end*/
 	write_mem(object_address, object_size, tmp);
 
 	kfree(tmp);
@@ -1299,7 +1215,6 @@ int write_noisesuppression_config(u8 instance)
  * 
  */
 
-/* < DTS2010083103149 zhangtao 20100909 begin */
 
 int write_Proximity_Config_Init(u8 instance)
 {
@@ -1407,7 +1322,6 @@ int write_One_Touch_Gesture_Config_Init(u8 instance)
 	return 0;
     
 }
-/* DTS2010083103149 zhangtao 20100909 end > */
 
 /*!
  * \brief read sptselftest config. 
@@ -1559,20 +1473,12 @@ int write_CTE_config(u8 instance)
 		return 1;
 	}
 	memset(tmp, 0, object_size);
-/*<BU5D09283 luojianhong 20100506 begin*/
-/* < DTS2010110401166 zhangtao 20101104 begin */
 	*(tmp + 0) = 0; //ctrl
 	*(tmp + 1) = 0; //cmd
 	*(tmp + 2) = 1; //mode
 	*(tmp + 3) = 16; //idlegcafdepth
-/*<BU5D09839 luojianhong 20100513 begin*/
-/* < DTS2010073101113 zhangtao 20100819 begin */
 	*(tmp + 4) = 32; //actvgcafdepth
-/* DTS2010073101113 zhangtao 20100819 end > */
-/*<BU5D09839 luojianhong 20100513 end*/
 	*(tmp + 5) = 10; //voltage
-/* DTS2010110401166 zhangtao 20101104 end > */
-/*<BU5D09283 luojianhong 20100506 end*/
 
 	write_mem(object_address, object_size, tmp);
 
@@ -2473,7 +2379,7 @@ static void atmel_ts_work_func(struct work_struct *work)
 						if (ts->test > 0) 
 							key_pressed = KEY_BRL_DOT3;
 						else
-							key_pressed = KEY_HOME;
+							key_pressed = KEY_HOMEPAGE;
 					 	touch_input_report_key(ts, key_pressed, 1);
 						input_sync(ts->input_dev);
 					}
