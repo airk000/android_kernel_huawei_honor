@@ -1106,7 +1106,7 @@ static int aps_12d_resume(struct i2c_client *client)
 	if(EVERLIGHT == intersil_flag)
 	{
 	    ret=-1;
-    	for(i=0;i<10 && ret!=0;i++) {
+    	for(int i=0;i<10 && ret!=0;i++) {
 		ret = aps_i2c_reg_write(aps, APS_12D_REG_CMD2, \
 					(uint8_t)(APS_12D_IRDR_SEL_50MA << 6 | \
 										APS_12D_FREQ_SEL_DC << 4 | \
@@ -1119,7 +1119,7 @@ static int aps_12d_resume(struct i2c_client *client)
 	else 
 	{
 	    ret=-1;
-    	for(i=0;i<10 && ret!=0;i++) {
+    	for(int i=0;i<10 && ret!=0;i++) {
 		ret = aps_i2c_reg_write(aps, APS_12D_REG_CMD2, \
 					(uint8_t)(APS_12D_IRDR_SEL_INTERSIL_50MA << 4 | \
 										APS_FREQ_INTERSIL_DC << 6 | \
