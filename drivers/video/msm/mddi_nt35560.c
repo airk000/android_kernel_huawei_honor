@@ -132,12 +132,7 @@ static const struct sequence nt35560_fwvga_dynamic_gamma22_table[] =
 /* DTS2011081601583 pengyu 20110816 end >*/
 {          
     {0XC980,0X01,0},
-	/*< DTS2012052303745 zhongjinrong 20120523 begin */
-    /*< DTS2011112403478 pengyu 20111124 begin */
-    /* No need to config cabc mode in dynamic gamma settings */
-    /*{0x5500,0x00,0},*/
-    /* DTS2011112403478 pengyu 20111124 end >*/
-	/* DTS2012052303745 zhongjinrong 20120523 end >*/
+    {0x5500,0x00,0},
     {0X0180,0X14,0},
     {0X0280,0X00,0},
     {0X0380,0X33,0},
@@ -309,12 +304,7 @@ static const struct sequence nt35560_fwvga_dynamic_gamma25_table[] =
 /*<DTS2011081002714 jiaoshuangwei 20110810 begin*/
 /*there is 2.5 GAMA initialization sequence */
 	{0XC980,0X01,0},
-	/*< DTS2012052303745 zhongjinrong 20120523 begin */
-    /*< DTS2011112403478 pengyu 20111124 begin */
-    /* No need to config cabc mode in dynamic gamma settings */
-    /*{0x5500,0x00,0},*/
-    /* DTS2011112403478 pengyu 20111124 end >*/
-	/* DTS2012052303745 zhongjinrong 20120523 end >*/
+	{0x5500,0x00,0},
 	{0X0180,0X14,0},
 	{0X0280,0X00,0},
 	{0X0380,0X33,0},
