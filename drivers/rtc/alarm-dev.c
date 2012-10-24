@@ -25,6 +25,8 @@
 #include <linux/uaccess.h>
 #include <linux/wakelock.h>
 
+#include <mach/pmic.h>
+
 #define ANDROID_ALARM_PRINT_INFO (1U << 0)
 #define ANDROID_ALARM_PRINT_IO (1U << 1)
 #define ANDROID_ALARM_PRINT_INT (1U << 2)
