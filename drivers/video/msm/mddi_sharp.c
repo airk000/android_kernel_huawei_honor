@@ -855,6 +855,7 @@ static int __init mddi_sharp_init(void)
 		pinfo->clk_min = 120000000;
 		pinfo->clk_max = 125000000;
 		pinfo->lcd.vsync_enable = TRUE;
+		pinfo->mddi.is_type1 = TRUE;
 		pinfo->lcd.refx100 =
 			(mddi_sharp_rows_per_second * 100) /
 			mddi_sharp_rows_per_refresh;

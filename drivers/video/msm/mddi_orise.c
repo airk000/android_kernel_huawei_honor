@@ -102,6 +102,7 @@ static int __init mddi_orise_init(void)
 		MSM_FB_SINGLE_MODE_PANEL(pinfo);
 		pinfo->type = MDDI_PANEL;
 		pinfo->pdest = DISPLAY_1;
+		pinfo->mddi.is_type1 = TRUE;
 		pinfo->mddi.vdopkt = MDDI_DEFAULT_PRIM_PIX_ATTR;
 		pinfo->wait_cycle = 0;
 		pinfo->bpp = 18;
