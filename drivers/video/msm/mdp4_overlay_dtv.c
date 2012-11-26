@@ -395,7 +395,7 @@ int mdp4_overlay_dtv_unset(struct msm_fb_data_type *mfd,
 
 	flags = pipe->flags;
 	pipe->flags &= ~MDP_OV_PLAY_NOWAIT;
-	mdp4_overlay_dtv_vsync_push(mfd, pipe);
+	mdp4_overlay_dtv_ov_done_push(mfd, pipe);
 	pipe->flags = flags;
 
 	if (pipe->mixer_stage == MDP4_MIXER_STAGE_BASE &&

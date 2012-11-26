@@ -1241,7 +1241,6 @@ static int msm_fb_register(struct msm_fb_data_type *mfd)
 	struct fb_var_screeninfo *var;
 	int *id;
 	int fbram_offset;
-	int remainder, remainder_mode2;
 
 	/*
 	 * fb info initialization
@@ -1378,38 +1377,20 @@ static int msm_fb_register(struct msm_fb_data_type *mfd)
 
 	fix->line_length = msm_fb_line_length(mfd->index, panel_info->xres,
 					      bpp);
-	/* Make sure all buffers can be addressed on a page boundary by an x
-	 * and y offset */
-
-	remainder = (fix->line_length * panel_info->yres) & (PAGE_SIZE - 1);
-					/* PAGE_SIZE is a power of 2 */
-	if (!remainder)
-		remainder = PAGE_SIZE;
-	remainder_mode2 = (fix->line_length *
-				panel_info->mode2_yres) & (PAGE_SIZE - 1);
-	if (!remainder_mode2)
-		remainder_mode2 = PAGE_SIZE;
 	/* calculate smem_len based on max size of two supplied modes */
-	if (mfd->index == 0)
-		fix->smem_len = MAX((msm_fb_line_length(mfd->index,
-							panel_info->xres,
-							bpp) *
-				     panel_info->yres + PAGE_SIZE -
-				     remainder) * mfd->fb_page,
-				    (msm_fb_line_length(mfd->index,
-							panel_info->mode2_xres,
-							bpp) *
-				     panel_info->mode2_yres + PAGE_SIZE -
-				     remainder_mode2) * mfd->fb_page);
-	else if (mfd->index == 1 || mfd->index == 2) {
-		pr_debug("%s:%d no memory is allocated for fb%d!\n",
-			__func__, __LINE__, mfd->index);
-		fix->smem_len = 0;
-	}
+	fix->smem_len = roundup(MAX(msm_fb_line_length(mfd->index,
+					       panel_info->xres,
+					       bpp) *
+			    panel_info->yres * mfd->fb_page,
+			    msm_fb_line_length(mfd->index,
+					       panel_info->mode2_xres,
+					       bpp) *
+			    panel_info->mode2_yres * mfd->fb_page), PAGE_SIZE);
+
+
 
 	mfd->var_xres = panel_info->xres;
 	mfd->var_yres = panel_info->yres;
-	mfd->var_frame_rate = panel_info->frame_rate;
 
 	var->pixclock = mfd->panel_info.clk_rate;
 	mfd->var_pixclock = var->pixclock;
@@ -1417,19 +1398,15 @@ static int msm_fb_register(struct msm_fb_data_type *mfd)
 	var->xres = panel_info->xres;
 	var->yres = panel_info->yres;
 	var->xres_virtual = panel_info->xres;
-	var->yres_virtual = panel_info->yres * mfd->fb_page +
-		((PAGE_SIZE - remainder)/fix->line_length) * mfd->fb_page;
+	var->yres_virtual = panel_info->yres * mfd->fb_page;
 	var->bits_per_pixel = bpp * 8;	/* FrameBuffer color depth */
 	if (mfd->dest == DISPLAY_LCD) {
-		if (panel_info->type == MDDI_PANEL && panel_info->mddi.is_type1)
-			var->reserved[3] = panel_info->lcd.refx100 / (100 * 2);
-		else
-		var->reserved[3] = panel_info->lcd.refx100 / 100;
+		var->reserved[4] = panel_info->lcd.refx100 / 100;
 	} else {
 		if (panel_info->type == MIPI_VIDEO_PANEL) {
-			var->reserved[3] = panel_info->mipi.frame_rate;
+			var->reserved[4] = panel_info->mipi.frame_rate;
 		} else {
-			var->reserved[3] = panel_info->clk_rate /
+			var->reserved[4] = panel_info->clk_rate /
 				((panel_info->lcdc.h_back_porch +
 				  panel_info->lcdc.h_front_porch +
 				  panel_info->lcdc.h_pulse_width +
@@ -1440,50 +1417,25 @@ static int msm_fb_register(struct msm_fb_data_type *mfd)
 				  panel_info->yres));
 		}
 	}
-	pr_debug("reserved[3] %u\n", var->reserved[3]);
+	pr_debug("reserved[4] %u\n", var->reserved[4]);
 
 		/*
 		 * id field for fb app
 		 */
-	id = (int *)&mfd->panel;
+	    id = (int *)&mfd->panel;
 
-	switch (mdp_rev) {
-	case MDP_REV_20:
-		snprintf(fix->id, sizeof(fix->id), "msmfb20_%x", (__u32) *id);
-		break;
-	case MDP_REV_22:
-		snprintf(fix->id, sizeof(fix->id), "msmfb22_%x", (__u32) *id);
-		break;
-	case MDP_REV_30:
-		snprintf(fix->id, sizeof(fix->id), "msmfb30_%x", (__u32) *id);
-		break;
-	case MDP_REV_303:
-		snprintf(fix->id, sizeof(fix->id), "msmfb303_%x", (__u32) *id);
-		break;
-	case MDP_REV_31:
-		snprintf(fix->id, sizeof(fix->id), "msmfb31_%x", (__u32) *id);
-		break;
-	case MDP_REV_40:
-		snprintf(fix->id, sizeof(fix->id), "msmfb40_%x", (__u32) *id);
-		break;
-	case MDP_REV_41:
-		snprintf(fix->id, sizeof(fix->id), "msmfb41_%x", (__u32) *id);
-		break;
-	case MDP_REV_42:
-		snprintf(fix->id, sizeof(fix->id), "msmfb42_%x", (__u32) *id);
-		break;
-	case MDP_REV_43:
-		snprintf(fix->id, sizeof(fix->id), "msmfb43_%x", (__u32) *id);
-		break;
-	case MDP_REV_44:
-		snprintf(fix->id, sizeof(fix->id), "msmfb44_%x", (__u32) *id);
-		break;
-	default:
-		snprintf(fix->id, sizeof(fix->id), "msmfb0_%x", (__u32) *id);
-		break;
-	}
-
-	fbi->fbops = &msm_fb_ops;
+#if defined(CONFIG_FB_MSM_MDP22)
+	snprintf(fix->id, sizeof(fix->id), "msmfb22_%x", (__u32) *id);
+#elif defined(CONFIG_FB_MSM_MDP30)
+	snprintf(fix->id, sizeof(fix->id), "msmfb30_%x", (__u32) *id);
+#elif defined(CONFIG_FB_MSM_MDP31)
+	snprintf(fix->id, sizeof(fix->id), "msmfb31_%x", (__u32) *id);
+#elif defined(CONFIG_FB_MSM_MDP40)
+	snprintf(fix->id, sizeof(fix->id), "msmfb40_%x", (__u32) *id);
+#else
+	error CONFIG_FB_MSM_MDP undefined !
+#endif
+	 fbi->fbops = &msm_fb_ops;
 	fbi->flags = FBINFO_FLAG_DEFAULT;
 	fbi->pseudo_palette = msm_fb_pseudo_palette;
 
@@ -1983,26 +1935,6 @@ static int msm_fb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 
 	return 0;
 }
-int msm_fb_check_frame_rate(struct msm_fb_data_type *mfd
-						, struct fb_info *info)
-{
-	int panel_height, panel_width, var_frame_rate, fps_mod;
-	struct fb_var_screeninfo *var = &info->var;
-	fps_mod = 0;
-	if ((mfd->panel_info.type == DTV_PANEL) ||
-		(mfd->panel_info.type == HDMI_PANEL)) {
-		panel_height = var->yres + var->upper_margin +
-			var->vsync_len + var->lower_margin;
-		panel_width = var->xres + var->right_margin +
-			var->hsync_len + var->left_margin;
-		var_frame_rate = ((var->pixclock)/(panel_height * panel_width));
-		if (mfd->var_frame_rate != var_frame_rate) {
-			fps_mod = 1;
-			mfd->var_frame_rate = var_frame_rate;
-		}
-	}
-	return fps_mod;
-}
 
 static int msm_fb_set_par(struct fb_info *info)
 {
@@ -2045,8 +1977,7 @@ static int msm_fb_set_par(struct fb_info *info)
 		(mfd->hw_refresh && ((mfd->fb_imgType != old_imgType) ||
 				(mfd->var_pixclock != var->pixclock) ||
 				(mfd->var_xres != var->xres) ||
-				(mfd->var_yres != var->yres) ||
-				(msm_fb_check_frame_rate(mfd, info))))) {
+				(mfd->var_yres != var->yres)))) {
 		mfd->var_xres = var->xres;
 		mfd->var_yres = var->yres;
 		mfd->var_pixclock = var->pixclock;
