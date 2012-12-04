@@ -2115,7 +2115,7 @@ void __ref msm_snddev_init_timpani(void)
         }
         else
         {
-*/          platform_add_devices(snd_devices_c8860, arraysize_c8860);
+*/          platform_add_devices(snd_devices_u8860, ARRAY_SIZE(snd_devices_u8860));
  //       }
         /* DTS2011122606588 yinzhaoyang 20111230 end > */
 		
