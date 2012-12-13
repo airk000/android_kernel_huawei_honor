@@ -1108,17 +1108,17 @@ static struct snddev_icodec_data snddev_ispkr_stereo_data_u8860 = {
 	.name = "speaker_stereo_rx",
 	.copp_id = 0,
 	.acdb_id = ACDB_ID_SPKR_PHONE_MONO,
-	.profile = &ispkr_stereo_profile_u8860,
+	.profile = &ihs_stereo_speaker_stereo_rx_profile,
 	.channel_mode = 1,
 	.pmctl_id = NULL,
 	.pmctl_id_sz = 0,
 	.default_sample_rate = 48000,
 	.pamp_on = msm_snddev_poweramp_on,
 	.pamp_off = msm_snddev_poweramp_off,
-	.max_voice_rx_vol[VOC_NB_INDEX] = 300,
-	.min_voice_rx_vol[VOC_NB_INDEX] = -1200,
-	.max_voice_rx_vol[VOC_WB_INDEX] = 300,
-	.min_voice_rx_vol[VOC_WB_INDEX] = -1200
+	.max_voice_rx_vol[VOC_NB_INDEX] = -500,
+	.min_voice_rx_vol[VOC_NB_INDEX] = -2000,
+	.max_voice_rx_vol[VOC_WB_INDEX] = -900,
+	.min_voice_rx_vol[VOC_WB_INDEX] = -2400
 };
 /* DTS2011053005461 dongchen 20110530 end >*/
 /* DTS2011080400504 dongchen 20110805 end >*/
