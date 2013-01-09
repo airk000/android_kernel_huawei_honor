@@ -40,12 +40,8 @@
 #include <dhd_proto.h>
 #include <dhd_bus.h>
 #include <dhd_dbg.h>
-#ifdef CUSTOMER_HW2
-int wifi_get_mac_addr(unsigned char *buf);
-#endif
 
 extern int dhd_preinit_ioctls(dhd_pub_t *dhd);
-
 
 /* Packet alignment for most efficient SDIO (can change based on platform) */
 #ifndef DHD_SDALIGN
@@ -78,8 +74,11 @@ dhdcdc_msg(dhd_pub_t *dhd)
 {
 	dhd_prot_t *prot = dhd->prot;
 	int len = ltoh32(prot->msg.len) + sizeof(cdc_ioctl_t);
+	int ret;
 
 	DHD_TRACE(("%s: Enter\n", __FUNCTION__));
+
+	dhd_os_wake_lock(dhd);
 
 	/* NOTE : cdc->msg.len holds the desired length of the buffer to be
 	 *        returned. Only up to CDC_MAX_MSG_SIZE of this buffer area
@@ -89,7 +88,9 @@ dhdcdc_msg(dhd_pub_t *dhd)
 		len = CDC_MAX_MSG_SIZE;
 
 	/* Send request */
-	return dhd_bus_txctl(dhd->bus, (uchar*)&prot->msg, len);
+	ret = dhd_bus_txctl(dhd->bus, (uchar*)&prot->msg, len);
+	dhd_os_wake_unlock(dhd);
+	return ret;
 }
 
 static int
@@ -149,7 +150,8 @@ dhdcdc_query_ioctl(dhd_pub_t *dhd, int ifidx, uint cmd, void *buf, uint len)
 		memcpy(prot->buf, buf, len);
 
 	if ((ret = dhdcdc_msg(dhd)) < 0) {
-		DHD_ERROR(("dhdcdc_query_ioctl: dhdcdc_msg failed w/status %d\n", ret));
+		if (!dhd->hang_was_sent)
+			DHD_ERROR(("dhdcdc_query_ioctl: dhdcdc_msg failed w/status %d\n", ret));
 		goto done;
 	}
 
@@ -204,6 +206,18 @@ dhdcdc_set_ioctl(dhd_pub_t *dhd, int ifidx, uint cmd, void *buf, uint len)
 	DHD_TRACE(("%s: Enter\n", __FUNCTION__));
 	DHD_CTL(("%s: cmd %d len %d\n", __FUNCTION__, cmd, len));
 
+	if (dhd->busstate == DHD_BUS_DOWN) {
+		DHD_ERROR(("%s : bus is down. we have nothing to do\n", __FUNCTION__));
+		return -EIO;
+	}
+
+	/* don't talk to the dongle if fw is about to be reloaded */
+	if (dhd->hang_was_sent) {
+		DHD_ERROR(("%s: HANG was sent up earlier. Not talking to the chip\n",
+			__FUNCTION__));
+		return -EIO;
+	}
+
 	memset(msg, 0, sizeof(cdc_ioctl_t));
 
 	msg->cmd = htol32(cmd);
@@ -250,7 +264,7 @@ dhd_prot_ioctl(dhd_pub_t *dhd, int ifidx, wl_ioctl_t * ioc, void * buf, int len)
 	dhd_prot_t *prot = dhd->prot;
 	int ret = -1;
 
-	if (dhd->busstate == DHD_BUS_DOWN) {
+	if ((dhd->busstate == DHD_BUS_DOWN) || dhd->hang_was_sent) {
 		DHD_ERROR(("%s : bus is down. we have nothing to do\n", __FUNCTION__));
 		return ret;
 	}
@@ -487,17 +501,12 @@ int
 dhd_prot_init(dhd_pub_t *dhd)
 {
 	int ret = 0;
-	/*porting,WIFI Module,hanshirong 66539,20101108 begin++ */
-	#if 0
 	char buf[128];
-	#endif
-	/*porting,WIFI Module,hanshirong 66539,20101108 end-- */
+
 	DHD_TRACE(("%s: Enter\n", __FUNCTION__));
 
 	dhd_os_proto_block(dhd);
 
-	/*porting,WIFI Module,hanshirong 66539,20101108 begin++ */
-	#if 0
 	/* Get the device MAC address */
 	strcpy(buf, "cur_etheraddr");
 	ret = dhdcdc_query_ioctl(dhd, 0, WLC_GET_VAR, buf, sizeof(buf));
@@ -506,8 +515,7 @@ dhd_prot_init(dhd_pub_t *dhd)
 		return ret;
 	}
 	memcpy(dhd->mac.octet, buf, ETHER_ADDR_LEN);
-	#endif
-	/*porting,WIFI Module,hanshirong 66539,20101108 end-- */
+
 	dhd_os_proto_unblock(dhd);
 
 #ifdef EMBEDDED_PLATFORM
