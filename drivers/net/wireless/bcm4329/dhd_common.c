@@ -125,7 +125,7 @@ const bcm_iovar_t dhd_iovars[] = {
 	{NULL, 0, 0, 0, 0 }
 };
 
-#define HUAWEI_WIFI_LOAD_PATH "/data/misc/wifi/load/"
+#define HUAWEI_WIFI_LOAD_PATH "/system/vendor/firmware/"
 void
 dhd_common_init(void)
 {
