@@ -792,7 +792,7 @@ int write_power_config(int on)
     if(on)
     {
 	    *(tmp + 0) = 50; //0xff//Idle Acquisition
-	    *(tmp + 1) = 16; //0xff//Active Acquisition
+	    *(tmp + 1) = 14; //0xff//Active Acquisition
 	    *(tmp + 2) = 50; //0x32//Active to Idle Timeout
     }
     else
@@ -856,8 +856,8 @@ int write_acquisition_config(u8 instance,int flag)
 	if(0 == flag)
     {
         /* shut down calibration */
-    	*(tmp + 6) = 0; //0x0a//ATCHCALST
-    	*(tmp + 7) = 1; //0x0f//ATCHCALSTHR
+    	*(tmp + 6) = 5; //0x0a//ATCHCALST
+    	*(tmp + 7) = 40; //0x0f//ATCHCALSTHR
     }
     else 
     {
@@ -979,7 +979,7 @@ int write_multitouchscreen_config(u8 instance,int flag)
     if(0 == flag)
     {
         /* effect atch vaule */
-    	*(tmp + 7) = 20; //0x1d; //tchthr
+    	*(tmp + 7) = 50; //0x1d; //tchthr
     }
     else
     {
@@ -1915,6 +1915,14 @@ static u32 touch_get_extra_keycode(int pos_x, int pos_y)
     return touch_keycode;
 }
 #endif
+static char touch_info[50] = {0};
+char * get_atmel_touch_info(void)
+{
+    if(g_client==NULL)
+	   return NULL;
+	sprintf(touch_info,"atmel-rmi-ts");
+	return touch_info;
+}
 
 static void atmel_ts_work_func(struct work_struct *work)
 {
@@ -1930,7 +1938,7 @@ static void atmel_ts_work_func(struct work_struct *work)
 /* delete some lines the multi_touch_mode and is_multi_touch will not use anymore*/
 	static bool first_point_pressed = FALSE;
 	static bool second_point_pressed = FALSE;
-    static bool last_is_2points = FALSE;//if it's 2 points pressed last time.
+    static int finger_press_num = 0;
     static char first_point_id = 1; 
     static int point_1_x;
     static int point_1_y;
@@ -2158,17 +2166,19 @@ static void atmel_ts_work_func(struct work_struct *work)
 					        input_mt_sync(ts->input_dev);
                         }
                     }
-                    else if(last_is_2points)//when one point released...
+                    /* else if(last_is_2points)//when one point released...
                     {
                         input_report_abs(ts->input_dev, ABS_MT_TOUCH_MAJOR, 0);
         				input_report_abs(ts->input_dev, ABS_MT_WIDTH_MAJOR, 0);
         				input_mt_sync(ts->input_dev);
-                    }
+                    }*/
+                    finger_press_num = first_point_pressed + second_point_pressed;
+                    input_report_key(ts->input_dev, BTN_TOUCH, finger_press_num);
                     input_sync(ts->input_dev);
-                    if(first_point_pressed && second_point_pressed)
+                    /*if(first_point_pressed && second_point_pressed)
                         last_is_2points = TRUE;
                     else
-                        last_is_2points = FALSE;
+                        last_is_2points = FALSE;*/
 				}
 				else
 				{
