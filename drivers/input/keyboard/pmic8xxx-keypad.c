@@ -766,6 +766,7 @@ static int pmic8xxx_kp_resume(struct device *dev)
 
 	if (device_may_wakeup(dev)) {
 		disable_irq_wake(kp->key_sense_irq);
+        pmic8xxx_kp_enable(kp);
 	} else {
 		mutex_lock(&input_dev->mutex);
 
