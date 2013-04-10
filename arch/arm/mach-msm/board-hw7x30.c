@@ -134,8 +134,11 @@ struct regulator *vreg_gp4 = NULL;
 #include "smd_private.h"
 #include <linux/bma150.h>
 #include "board-msm7x30-regulator.h"
-
-#define MSM_PMEM_SF_SIZE	0x2400000
+#ifdef CONFIG_HUAWEI_KERNEL
+#define MSM_PMEM_SF_SIZE  0x1900000
+#else
+#define MSM_PMEM_SF_SIZE  0x2400000
+#endif
 
 #ifdef CONFIG_HUAWEI_KERNEL
 #include <asm-arm/huawei/smem_vendor_huawei.h>
@@ -145,18 +148,20 @@ struct regulator *vreg_gp4 = NULL;
 smem_huawei_vender usb_para_data;
 #endif
 
-/*set fb size to 5M to save memory 2.8M */
-#ifdef CONFIG_HUAWEI_KERNEL
-#define MSM_FB_SIZE             0x500000
-#define MSM_PMEM_ADSP_SIZE      0x2D00000 //45M
-#else
 #ifdef CONFIG_FB_MSM_TRIPLE_BUFFER
+/*< DTS2012052202320 zhongjinrong 20120522 begin */
+/* 480*854*4*3 = 0x4B0F00  <  0x500000 */
+#ifdef CONFIG_HUAWEI_KERNEL
+#define MSM_FB_SIZE            0x500000
+#else
 #define MSM_FB_SIZE            0x780000
+#endif
+/* DTS2012052202320 zhongjinrong 20120522 end >*/
 #else
 #define MSM_FB_SIZE            0x500000
 #endif
-#define MSM_PMEM_ADSP_SIZE      0x3000000
-#endif
+#define MSM_PMEM_ADSP_SIZE      0x2400000
+
 #define MSM_FLUID_PMEM_ADSP_SIZE	0x2800000
 #define PMEM_KERNEL_EBI0_SIZE   0x600000
 #define MSM_PMEM_AUDIO_SIZE     0x200000
@@ -326,6 +331,24 @@ struct pm8xxx_gpio_init_info {
 	unsigned			gpio;
 	struct pm_gpio			config;
 };
+
+#define MSM_RAM_CONSOLE_SIZE 256*1024
+
+static struct resource ram_console_resources[] = {
+        {
+                .start  = 0,
+                .end    = 0,
+                .flags  = IORESOURCE_MEM,
+        },
+};
+
+static struct platform_device ram_console_device = {
+        .name           = "ram_console",
+        .id             = -1,
+        .num_resources  = ARRAY_SIZE(ram_console_resources),
+        .resource       = ram_console_resources,
+};
+
 
 static int pm8058_gpios_init(void)
 {
@@ -3120,10 +3143,10 @@ static int marimba_tsadc_exit(void)
 
 
 static struct msm_ts_platform_data msm_ts_data = {
-	.min_x          = 0,
-	.max_x          = 4096,
-	.min_y          = 0,
-	.max_y          = 4096,
+	.min_x          = 284,
+	.max_x          = 3801,
+	.min_y          = 155,
+	.max_y          = 3929,
 	.min_press      = 0,
 	.max_press      = 255,
 	.inv_x          = 4096,
@@ -6759,6 +6782,7 @@ static struct platform_device *devices[] __initdata = {
 	&smc91x_device,
 	&smsc911x_device,
 	&msm_device_nand,
+	&ram_console_device,
 #ifdef CONFIG_USB_MSM_OTG_72K
 	&msm_device_otg,
 #ifdef CONFIG_USB_GADGET
