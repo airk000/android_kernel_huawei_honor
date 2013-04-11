@@ -23,6 +23,10 @@
 #include <linux/mfd/pm8xxx/core.h>
 #include <linux/mfd/pm8xxx/gpio.h>
 #include <linux/input/pmic8xxx-keypad.h>
+#include <asm/mach-types.h>
+#include <linux/hardware_self_adapt.h>
+#define PM8058_GPIO_PM_TO_SYS(pm_gpio)     (pm_gpio + NR_GPIO_IRQS)
+#define PM_GPIO_13	PM8058_GPIO_PM_TO_SYS(12)
 
 #define PM8XXX_MAX_ROWS		18
 #define PM8XXX_MAX_COLS		8
@@ -295,6 +299,16 @@ static bool pmic8xxx_detect_ghost_keys(struct pmic8xxx_kp *kp, u16 *new_state)
 	int row, found_first = -1;
 	u16 check, row_state;
 
+/*
+	* for u8860, c8860 and u8860lp, add the codes means:
+	* when volumn-up and volumn-down keys are pressed in the sametime,
+	* the state of kp scan matrix read from the register is wrong because of hardwared's wrong,
+	* and it will make system think the state as ghost keys mistakenly , 
+	* so these board ids should not be check for ghost keys
+*/
+#ifdef CONFIG_HUAWEI_KERNEL
+		return 0;
+#endif
 	check = 0;
 	for (row = 0; row < kp->pdata->num_rows; row++) {
 		row_state = (~new_state[row]) &
@@ -319,7 +333,7 @@ static int pmic8xxx_kp_scan_matrix(struct pmic8xxx_kp *kp, unsigned int events)
 	u16 new_state[PM8XXX_MAX_ROWS];
 	u16 old_state[PM8XXX_MAX_ROWS];
 	int rc;
-	printk("enter %s \n",__func__);
+
 	switch (events) {
 	case 0x1:
 		rc = pmic8xxx_kp_read_matrix(kp, new_state, NULL);
@@ -353,7 +367,6 @@ static int pmic8xxx_kp_scan_matrix(struct pmic8xxx_kp *kp, unsigned int events)
 	default:
 		rc = -EINVAL;
 	}
-	printk("leave %s \n",__func__);
 	return rc;
 }
 
@@ -391,7 +404,7 @@ static irqreturn_t pmic8xxx_kp_irq(int irq, void *data)
 	struct pmic8xxx_kp *kp = data;
 	u8 ctrl_val, events;
 	int rc;
-	printk("enter pmic8xxx_kp_irq\n");
+
 	rc = pmic8xxx_kp_read(kp, &ctrl_val, KEYP_CTRL, 1);
 	if (rc < 0) {
 		dev_err(kp->dev, "failed to read keyp_ctrl register\n");
@@ -399,12 +412,11 @@ static irqreturn_t pmic8xxx_kp_irq(int irq, void *data)
 	}
 
 	events = ctrl_val & KEYP_CTRL_EVNTS_MASK;
-	printk("events: %d in pmic8xxx_kp_irq \n",events);
+
 	rc = pmic8xxx_kp_scan_matrix(kp, events);
 	if (rc < 0)
 		dev_err(kp->dev, "failed to scan matrix\n");
 
-	printk("leave pmic8xxx_kp_irq\n");
 	return IRQ_HANDLED;
 }
 
@@ -467,6 +479,11 @@ static int  __devinit pmic8xxx_kp_config_gpio(int gpio_start, int num_gpios,
 		return -EINVAL;
 
 	for (i = 0; i < num_gpios; i++) {
+	    if ((machine_is_msm8255_c8860()) && (PM_GPIO_13 == (gpio_start + i)))
+	    {
+		    /* PM_GPIO_13 is used for RF in C8860, should not be configured here */
+		    continue;
+		}
 		rc = pm8xxx_gpio_config(gpio_start + i, gpio_config);
 		if (rc) {
 			dev_err(kp->dev, "%s: FAIL pm8xxx_gpio_config():"
@@ -766,7 +783,6 @@ static int pmic8xxx_kp_resume(struct device *dev)
 
 	if (device_may_wakeup(dev)) {
 		disable_irq_wake(kp->key_sense_irq);
-        pmic8xxx_kp_enable(kp);
 	} else {
 		mutex_lock(&input_dev->mutex);
 

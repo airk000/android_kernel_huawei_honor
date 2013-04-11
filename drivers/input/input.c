@@ -37,6 +37,7 @@ MODULE_LICENSE("GPL");
 static LIST_HEAD(input_dev_list);
 static LIST_HEAD(input_handler_list);
 
+bool    g_bypass_release_key = false ;
 /*
  * input_mutex protects access to both input_dev_list and input_handler_list.
  * This also causes input_[un]register_device and input_[un]register_handler
@@ -1570,6 +1571,9 @@ void input_reset_device(struct input_dev *dev)
 	if (dev->users) {
 		input_dev_toggle(dev, true);
 
+        /* if input_dev_resume call this function skip the process */
+        if( !g_bypass_release_key )
+        {
 		/*
 		 * Keys that have been pressed at suspend time are unlikely
 		 * to be still pressed when we resume.
@@ -1577,6 +1581,7 @@ void input_reset_device(struct input_dev *dev)
 		spin_lock_irq(&dev->event_lock);
 		input_dev_release_keys(dev);
 		spin_unlock_irq(&dev->event_lock);
+        }
 	}
 
 	mutex_unlock(&dev->mutex);
@@ -1601,9 +1606,11 @@ static int input_dev_suspend(struct device *dev)
 static int input_dev_resume(struct device *dev)
 {
 	struct input_dev *input_dev = to_input_dev(dev);
+    g_bypass_release_key = true ;
 
 	input_reset_device(input_dev);
 
+    g_bypass_release_key = false ;
 	return 0;
 }
 
