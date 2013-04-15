@@ -160,7 +160,7 @@ smem_huawei_vender usb_para_data;
 #else
 #define MSM_FB_SIZE            0x500000
 #endif
-#define MSM_PMEM_ADSP_SIZE      0x2400000
+#define MSM_PMEM_ADSP_SIZE      0x3000000
 
 #define MSM_FLUID_PMEM_ADSP_SIZE	0x2800000
 #define PMEM_KERNEL_EBI0_SIZE   0x600000
