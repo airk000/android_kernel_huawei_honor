@@ -287,8 +287,7 @@ static const struct sequence nt35560_fwvga_dynamic_gamma25_table[] =
 {
 /*there is 2.5 GAMA initialization sequence */
 	{0XC980,0X01,0},
-    /* No need to config cabc mode in dynamic gamma settings */
-    /*{0x5500,0x00,0},*/
+	{0x5500,0x00,0},
 	{0X0180,0X14,0},
 	{0X0280,0X00,0},
 	{0X0380,0X33,0},
@@ -756,7 +755,7 @@ static int __init nt35560_init(void)
 	{
 		pinfo = &nt35560_panel_data.panel_info;
 		pinfo->xres = 480;
-		pinfo->yres = 854;
+		pinfo->yres = 864;
 		pinfo->type = MDDI_PANEL;
 		pinfo->pdest = DISPLAY_1;
 		pinfo->mddi.vdopkt = MDDI_DEFAULT_PRIM_PIX_ATTR;
