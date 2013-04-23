@@ -39,6 +39,7 @@
 		DATA_FORMAT_PADDING_INFO__TPCM_FORMAT_V)
 #define BT_SCO_AUX_CODEC_INTF   AUX_CODEC_INTF_CTL__PCMINTF_DATA_EN_V
 
+static struct adie_codec_dev_profile ispkr_music_stereo_profile;
 
 static struct snddev_mi2s_data snddev_mi2s_fm_tx_data = {
 	.capability = SNDDEV_CAP_TX ,
@@ -390,18 +391,18 @@ static struct snddev_icodec_data snddev_ispkr_stereo_data = {
 	.capability = (SNDDEV_CAP_RX | SNDDEV_CAP_VOICE),
 	.name = "speaker_stereo_rx",
 	.copp_id = 0,
-	.acdb_id = ACDB_ID_SPKR_PHONE_MONO,
-	.profile = &ispkr_stereo_profile,
+	.acdb_id = ACDB_ID_SPKR_PHONE_MUSIC_MONO,
+	.profile = &ispkr_music_stereo_profile,
 	.channel_mode = 1,
 	.pmctl_id = NULL,
 	.pmctl_id_sz = 0,
 	.default_sample_rate = 48000,
 	.pamp_on = msm_snddev_poweramp_on,
 	.pamp_off = msm_snddev_poweramp_off,
-	.max_voice_rx_vol[VOC_NB_INDEX] = -200,
-	.min_voice_rx_vol[VOC_NB_INDEX] = -1200,
-	.max_voice_rx_vol[VOC_WB_INDEX] = -200,
-	.min_voice_rx_vol[VOC_WB_INDEX] = -1200
+	.max_voice_rx_vol[VOC_NB_INDEX] = -1100,
+	.min_voice_rx_vol[VOC_NB_INDEX] = -1800,
+	.max_voice_rx_vol[VOC_WB_INDEX] = -1100,
+	.min_voice_rx_vol[VOC_WB_INDEX] = -1800
 };
 
 static struct platform_device msm_ispkr_stereo_device = {
@@ -603,10 +604,10 @@ static struct snddev_icodec_data snddev_ispkr_music_stereo_data = {
 	.default_sample_rate = 48000,
 	.pamp_on = msm_snddev_poweramp_4music_on,
 	.pamp_off = msm_snddev_poweramp_off,
-	.max_voice_rx_vol[VOC_NB_INDEX] = 1000,
-	.min_voice_rx_vol[VOC_NB_INDEX] = -500,
-	.max_voice_rx_vol[VOC_WB_INDEX] = 1000,
-	.min_voice_rx_vol[VOC_WB_INDEX] = -500
+	.max_voice_rx_vol[VOC_NB_INDEX] = 200,
+	.min_voice_rx_vol[VOC_NB_INDEX] = -800,
+	.max_voice_rx_vol[VOC_WB_INDEX] = 200,
+	.min_voice_rx_vol[VOC_WB_INDEX] = -800
 };
 
 static struct platform_device msm_ispkr_music_stereo_device = {
