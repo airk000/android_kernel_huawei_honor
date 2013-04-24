@@ -391,7 +391,7 @@ static struct snddev_icodec_data snddev_ispkr_stereo_data = {
 	.capability = (SNDDEV_CAP_RX | SNDDEV_CAP_VOICE),
 	.name = "speaker_stereo_rx",
 	.copp_id = 0,
-	.acdb_id = ACDB_ID_SPKR_PHONE_MUSIC_MONO,
+	.acdb_id = ACDB_ID_HEADSET_MONO_PLUS_SPKR_MONO_RX,   //ACDB_ID_SPKR_PHONE_MONO,
 	.profile = &ispkr_music_stereo_profile,
 	.channel_mode = 1,
 	.pmctl_id = NULL,
@@ -399,10 +399,10 @@ static struct snddev_icodec_data snddev_ispkr_stereo_data = {
 	.default_sample_rate = 48000,
 	.pamp_on = msm_snddev_poweramp_on,
 	.pamp_off = msm_snddev_poweramp_off,
-	.max_voice_rx_vol[VOC_NB_INDEX] = -1100,
-	.min_voice_rx_vol[VOC_NB_INDEX] = -1800,
-	.max_voice_rx_vol[VOC_WB_INDEX] = -1100,
-	.min_voice_rx_vol[VOC_WB_INDEX] = -1800
+	.max_voice_rx_vol[VOC_NB_INDEX] = 500,
+	.min_voice_rx_vol[VOC_NB_INDEX] = -1100,
+	.max_voice_rx_vol[VOC_WB_INDEX] = 500,
+	.min_voice_rx_vol[VOC_WB_INDEX] = -1100
 };
 
 static struct platform_device msm_ispkr_stereo_device = {
