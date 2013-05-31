@@ -25,6 +25,7 @@
 #include <linux/input/pmic8xxx-keypad.h>
 #include <asm/mach-types.h>
 #include <linux/hardware_self_adapt.h>
+#include <asm/mach-types.h>
 #define PM8058_GPIO_PM_TO_SYS(pm_gpio)     (pm_gpio + NR_GPIO_IRQS)
 #define PM_GPIO_13	PM8058_GPIO_PM_TO_SYS(12)
 
@@ -99,6 +100,7 @@
  * @stuckstate - present state when key stuck irq
  * @ctrl_reg - control register value
  */
+extern bool mmi_keystate[255];
 struct pmic8xxx_kp {
 	const struct pm8xxx_keypad_platform_data *pdata;
 	struct input_dev *input;
@@ -221,6 +223,9 @@ static int pmic8xxx_kp_read_matrix(struct pmic8xxx_kp *kp, u16 *new_state,
 {
 	int rc, read_rows;
 	u8 scan_val;
+#ifdef CONFIG_HUAWEI_KERNEL
+	int i=0;
+#endif
 
 	if (kp->pdata->num_rows < PM8XXX_MIN_ROWS)
 		read_rows = PM8XXX_MIN_ROWS;
@@ -237,6 +242,18 @@ static int pmic8xxx_kp_read_matrix(struct pmic8xxx_kp *kp, u16 *new_state,
 				"Error reading KEYP_OLD_DATA, rc=%d\n", rc);
 			return rc;
 		}
+#ifdef CONFIG_HUAWEI_KERNEL
+		if(machine_is_msm8255_u8730())
+		{
+			if(~old_state[0] &(1<<(kp->pdata->num_cols-1)))
+			{
+				for(i=1;i< kp->pdata->num_rows;i++)
+				{
+					old_state[i]  |= 1<<(kp->pdata->num_cols-1);
+				}
+			}
+		}
+#endif
 	}
 
 	rc = pmic8xxx_kp_read_data(kp, new_state, KEYP_RECENT_DATA,
@@ -246,7 +263,19 @@ static int pmic8xxx_kp_read_matrix(struct pmic8xxx_kp *kp, u16 *new_state,
 			"Error reading KEYP_RECENT_DATA, rc=%d\n", rc);
 		return rc;
 	}
+#ifdef CONFIG_HUAWEI_KERNEL
+		if(machine_is_msm8255_u8730())
+		{
+			if(~new_state[0] &(1<<(kp->pdata->num_cols-1)))
+			{
+				for(i=1;i< kp->pdata->num_rows-1;i++)
+				{
+					new_state[i] |= 1<<(kp->pdata->num_cols-1);
+				}
+			}
+		}
 
+#endif
 	/* 4 * 32KHz clocks */
 	udelay((4 * DIV_ROUND_UP(USEC_PER_SEC, KEYP_CLOCK_FREQ)) + 1);
 
@@ -284,12 +313,20 @@ static void __pmic8xxx_kp_scan_matrix(struct pmic8xxx_kp *kp, u16 *new_state,
 
 			code = MATRIX_SCAN_CODE(row, col, PM8XXX_ROW_SHIFT);
 
+#ifdef CONFIG_HUAWEI_KERNEL	
+            if (kp->keycodes[code])
+            {
+#endif	
 			input_event(kp->input, EV_MSC, MSC_SCAN, code);
 			input_report_key(kp->input,
 					kp->keycodes[code],
 					!(new_state[row] & (1 << col)));
 
+	       		mmi_keystate[kp->keycodes[code]] = (!(new_state[row]&(1<<col)))? MMI_KEY_DOWN :MMI_KEY_UP ;
 			input_sync(kp->input);
+#ifdef CONFIG_HUAWEI_KERNEL		
+            }
+#endif	
 		}
 	}
 }

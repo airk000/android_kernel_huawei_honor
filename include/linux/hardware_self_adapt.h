@@ -33,6 +33,9 @@ when       who      what, where, why
 /* updated for regulator interface */
 #define IC_PM_VDD 2700000   /*set gp4 voltage as 2700000uV for all*/
 
+#define MMI_KEY_UP      false
+#define MMI_KEY_DOWN    true
+
 typedef enum
 {
     LCD_S6D74A0_SAMSUNG_HVGA,
