@@ -30,6 +30,7 @@ enum msm_ssbi_controller_type {
 };
 
 struct msm_ssbi_platform_data {
+    const char *rsl_id;
 	struct msm_ssbi_slave_info	slave;
 	enum msm_ssbi_controller_type controller_type;
 };

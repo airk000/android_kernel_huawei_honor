@@ -375,6 +375,7 @@ static int tpa2028d1_probe(struct i2c_client *client,const struct i2c_device_id 
     }
     else if (machine_is_msm8255_u8860() 
             || machine_is_msm8255_u8860lp()
+            || machine_is_msm8255_u8860_r()
             || machine_is_msm8255_u8860_92()
             || machine_is_msm8255_u8680()
 	 		|| machine_is_msm8255_u8860_51()

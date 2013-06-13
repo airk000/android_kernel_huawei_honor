@@ -344,7 +344,14 @@ static bool pmic8xxx_detect_ghost_keys(struct pmic8xxx_kp *kp, u16 *new_state)
 	* so these board ids should not be check for ghost keys
 */
 #ifdef CONFIG_HUAWEI_KERNEL
+	if (machine_is_msm8255_u8860() 
+	 || machine_is_msm8255_c8860() 
+	 || machine_is_msm8255_u8860lp() 
+     || machine_is_msm8255_u8860_r()
+	 || machine_is_msm8255_u8860_51())
+	{
 		return 0;
+	}
 #endif
 	check = 0;
 	for (row = 0; row < kp->pdata->num_rows; row++) {

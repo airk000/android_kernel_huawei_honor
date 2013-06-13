@@ -1006,10 +1006,10 @@ static struct snddev_icodec_data snddev_iearpiece_data_u8860 = {
 	.pamp_on = NULL,
 	.pamp_off = NULL,
 	.property = SIDE_TONE_MASK,
-	.max_voice_rx_vol[VOC_NB_INDEX] = 0,
-	.min_voice_rx_vol[VOC_NB_INDEX] = -1500,
-	.max_voice_rx_vol[VOC_WB_INDEX] = -700,
-	.min_voice_rx_vol[VOC_WB_INDEX] = -2200,
+	.max_voice_rx_vol[VOC_NB_INDEX] = 300,
+	.min_voice_rx_vol[VOC_NB_INDEX] = -1200,
+	.max_voice_rx_vol[VOC_WB_INDEX] = -400,
+	.min_voice_rx_vol[VOC_WB_INDEX] = -1900,
 };
 
 static struct platform_device msm_iearpiece_device_u8860 = {
@@ -1603,6 +1603,7 @@ void __ref msm_snddev_init_timpani(void)
 #endif        
     }else if( machine_is_msm8255_u8860() 
 	        || machine_is_msm8255_u8860lp() 
+            || machine_is_msm8255_u8860_r()
             || machine_is_msm8255_u8860_92()
             || machine_is_msm8255_u8680()
             || machine_is_msm8255_u8860_51()

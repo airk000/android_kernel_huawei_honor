@@ -94,6 +94,7 @@ static short userdata[3];
 static int fusiondata[10];
 static atomic_t a_flag;
 
+int hasGyro = 0;
 #ifdef CONFIG_HAS_EARLYSUSPEND
 static void gy_early_suspend(struct early_suspend *h);
 static void gy_late_resume(struct early_suspend *h);
@@ -759,6 +760,7 @@ static int l3g4200d_probe(struct i2c_client *client,
 	if (!gy_wq)
 		return -ENOMEM;
 
+	hasGyro = 1 ;
 	gyro = data;
 //	hrtimer_start(&this_gs_data->timer, ktime_set(0, 500000000), HRTIMER_MODE_REL);
 

@@ -761,12 +761,11 @@ static void report_hs_key(uint32_t key_code, uint32_t key_parm)
 #ifdef CONFIG_HUAWEI_KERNEL
         printk(KERN_ERR "%s: SW_HEADPHONE_INSERT: key_code = %d\n",__func__, key_code);
 
-        if(key_code == HS_REL_K)
-        {
+		//delete
             /* add 2s wake lock here to fix issue that time of swtiching audio-output 
              * is not enough when headset unpluging during incall */
             wake_lock_timeout(&headset_unplug_wake_lock, HEADSET_WAKE_DURING*HZ);
-        }
+		//delete
 #endif
 		hs->mic_on = hs->hs_on = (key_code != HS_REL_K) ? 1 : 0;
 		input_report_switch(hs->ipdev, SW_HEADPHONE_INSERT,

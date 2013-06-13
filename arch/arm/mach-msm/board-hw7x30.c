@@ -134,8 +134,11 @@ struct regulator *vreg_gp4 = NULL;
 #include "smd_private.h"
 #include <linux/bma150.h>
 #include "board-msm7x30-regulator.h"
-
-#define MSM_PMEM_SF_SIZE	0x2400000
+#ifdef CONFIG_HUAWEI_KERNEL
+#define MSM_PMEM_SF_SIZE  0x1900000
+#else
+#define MSM_PMEM_SF_SIZE  0x2400000
+#endif
 
 #ifdef CONFIG_HUAWEI_KERNEL
 #include <asm-arm/huawei/smem_vendor_huawei.h>
@@ -145,18 +148,17 @@ struct regulator *vreg_gp4 = NULL;
 smem_huawei_vender usb_para_data;
 #endif
 
-/*set fb size to 5M to save memory 2.8M */
-#ifdef CONFIG_HUAWEI_KERNEL
-#define MSM_FB_SIZE             0x500000
-#define MSM_PMEM_ADSP_SIZE      0x2D00000 //45M
-#else
 #ifdef CONFIG_FB_MSM_TRIPLE_BUFFER
+#ifdef CONFIG_HUAWEI_KERNEL
+#define MSM_FB_SIZE            0x500000
+#else
 #define MSM_FB_SIZE            0x780000
+#endif
 #else
 #define MSM_FB_SIZE            0x500000
 #endif
-#define MSM_PMEM_ADSP_SIZE      0x3000000
-#endif
+#define MSM_PMEM_ADSP_SIZE      0x2400000
+
 #define MSM_FLUID_PMEM_ADSP_SIZE	0x2800000
 #define PMEM_KERNEL_EBI0_SIZE   0x600000
 #define MSM_PMEM_AUDIO_SIZE     0x200000
@@ -1106,6 +1108,7 @@ static int get_phone_version(struct tp_resolution_conversion *tp_resolution_type
     else if (machine_is_msm8255_u8860()
             ||(machine_is_msm8255_c8860())
             ||(machine_is_msm8255_u8860lp())
+            || machine_is_msm8255_u8860_r()
             ||(machine_is_msm8255_u8860_92())
             ||(machine_is_msm8255_u8860_51()))
     {
@@ -1174,6 +1177,11 @@ static struct pm8058_platform_data pm8058_7x30_data = {
 
 #ifdef CONFIG_MSM_SSBI
 static struct msm_ssbi_platform_data msm7x30_ssbi_pm8058_pdata = {
+/* msm_ssbi add remote spinlock flag
+ * qualcomm case :00724486*/
+#ifdef CONFIG_HUAWEI_KERNEL		
+	.rsl_id = "D:PMIC_SSBI",
+#endif	
 	.controller_type = MSM_SBI_CTRL_SSBI2,
 	.slave	= {
 		.name			= "pm8058-core",
@@ -1309,14 +1317,14 @@ static uint32_t camera_off_gpio_table[] = {
 	GPIO_CFG(12, 0, GPIO_CFG_INPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA), /* PCLK */
 	GPIO_CFG(13, 0, GPIO_CFG_INPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA), /* HSYNC_IN */
 	GPIO_CFG(14, 0, GPIO_CFG_INPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA), /* VSYNC_IN */
-	GPIO_CFG(15, 0, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_2MA), /* MCLK */
+	GPIO_CFG(15, 0, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_16MA), /* MCLK */
 	#ifdef CONFIG_HUAWEI_CAMERA
     /* Delete 2 lines */
 	GPIO_CFG(31, 0, GPIO_CFG_INPUT, GPIO_CFG_PULL_UP, GPIO_CFG_2MA), /* RESET FOR OV7690*/
 	GPIO_CFG(52, 0, GPIO_CFG_INPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA), /* pwd FOR mt9d113*/
-	GPIO_CFG(55, 0, GPIO_CFG_INPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA), /* RESET FOR 4E1*/	
+	GPIO_CFG(55, 0, GPIO_CFG_INPUT, GPIO_CFG_NO_PULL, GPIO_CFG_2MA), /* RESET FOR 4E1*/	
 	GPIO_CFG(56, 0, GPIO_CFG_INPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA), /* VCM FOR 4E1*/	
-	GPIO_CFG(88, 0, GPIO_CFG_INPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA), /* ov5647*/	
+	GPIO_CFG(88, 0, GPIO_CFG_INPUT, GPIO_CFG_NO_PULL, GPIO_CFG_2MA), /* ov5647*/	
 	#endif
 };
 static uint32_t camera_on_gpio_table[] = {
@@ -1335,7 +1343,7 @@ static uint32_t camera_on_gpio_table[] = {
 	GPIO_CFG(12, 1, GPIO_CFG_INPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA), /* PCLK */
 	GPIO_CFG(13, 1, GPIO_CFG_INPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA), /* HSYNC_IN */
 	GPIO_CFG(14, 1, GPIO_CFG_INPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA), /* VSYNC_IN */
-	GPIO_CFG(15, 1, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_2MA), /* MCLK */
+	GPIO_CFG(15, 1, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_16MA), /* MCLK */
 	#ifdef CONFIG_HUAWEI_CAMERA
 	GPIO_CFG(16, 2, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_UP, GPIO_CFG_2MA), /* SCL */
 	GPIO_CFG(17, 2, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_UP, GPIO_CFG_2MA), /* SDL */
@@ -2525,7 +2533,12 @@ static int __init buses_init(void)
 		pr_err("%s: gpio_tlmm_config (gpio=%d) failed\n",
 		       __func__, PMIC_GPIO_INT);
 /* support U8820 keypad */
-	if (machine_is_msm7x30_fluid() || machine_is_msm7x30_u8800() || machine_is_msm7x30_u8820() || machine_is_msm7x30_u8800_51() || machine_is_msm8255_u8800_pro())  {
+	if (machine_is_msm7x30_fluid() 
+		|| machine_is_msm7x30_u8800() 
+		|| machine_is_msm7x30_u8820() 
+		|| machine_is_msm7x30_u8800_51() 
+		|| machine_is_msm8255_u8800_pro()) 
+	{
 		pm8058_7x30_data.keypad_pdata
 			= &fluid_keypad_data;
 	 
@@ -2533,6 +2546,7 @@ static int __init buses_init(void)
     } else if ( machine_is_msm8255_u8860() 
 			    || machine_is_msm8255_c8860() 
 			    || machine_is_msm8255_u8860lp()
+            || machine_is_msm8255_u8860_r()
 			    || machine_is_msm8255_u8860_92()
 			    || machine_is_msm8255_u8860_51())
     {
@@ -5397,13 +5411,13 @@ bail:
 	return rc;
 }
 
+/* sync G verson problem to I verson */
+#ifndef CONFIG_HUAWEI_KERNEL
 static int display_common_power(int on)
 {
 	int rc = 0, flag_on = !!on;
 	static int display_common_power_save_on;
 	static bool display_regs_initialized;
-
-    return 0;
 	if (display_common_power_save_on == flag_on)
 		return 0;
 
@@ -5616,6 +5630,12 @@ static int display_common_power(int on)
 
 	return rc;
 }
+#else
+static int display_common_power(int on)
+{
+	return 0;
+}
+#endif
 
 static int msm_fb_mddi_sel_clk(u32 *clk_rate)
 {
@@ -5799,20 +5819,20 @@ static struct regulator_bulk_data regs_bt_marimba[] = {
 	{ .supply = "smps3", .min_uV = 1800000, .max_uV = 1800000 },
 	{ .supply = "smps2", .min_uV = 1300000, .max_uV = 1300000 },
 	{ .supply = "ldo24", .min_uV = 1200000, .max_uV = 1200000 },
-	{ .supply = "ldo13", .min_uV = 2900000, .max_uV = 3050000 },
+	{ .supply = "ldo13", .min_uV = 2900000, .max_uV = 2900000 },
 };
 
 static struct regulator_bulk_data regs_bt_bahama_v1[] = {
 	{ .supply = "smps3", .min_uV = 1800000, .max_uV = 1800000 },
 	{ .supply = "ldo7",  .min_uV = 1800000, .max_uV = 1800000 },
 	{ .supply = "smps2", .min_uV = 1300000, .max_uV = 1300000 },
-	{ .supply = "ldo13", .min_uV = 2900000, .max_uV = 3050000 },
+	{ .supply = "ldo13", .min_uV = 2900000, .max_uV = 2900000 },
 };
 
 static struct regulator_bulk_data regs_bt_bahama_v2[] = {
 	{ .supply = "smps3", .min_uV = 1800000, .max_uV = 1800000 },
 	{ .supply = "ldo7",  .min_uV = 1800000, .max_uV = 1800000 },
-	{ .supply = "ldo13", .min_uV = 2900000, .max_uV = 3050000 },
+	{ .supply = "ldo13", .min_uV = 2900000, .max_uV = 2900000 },
 };
 
 static struct regulator_bulk_data *regs_bt;
@@ -8013,7 +8033,9 @@ int bcm_detect_chip_type( void )
 	if((machine_is_msm8255_u8860()) 		
 	|| (machine_is_msm8255_c8860()) 		
 	|| (machine_is_msm8255_u8860lp())		
+    || machine_is_msm8255_u8860_r()
 	|| (machine_is_msm8255_u8860_92())	
+	|| (machine_is_msm8255_u8800_pro())
 	|| (machine_is_msm8255_u8860_51()))
 	{
 		bcm_chip_type = BCM_CHIP_4329;
@@ -8263,6 +8285,7 @@ static void __init msm7x30_init_mmc(void)
 	|| (machine_is_msm8255_u8860())
 	|| (machine_is_msm8255_c8860())
     || (machine_is_msm8255_u8860lp())
+    || machine_is_msm8255_u8860_r()
     || (machine_is_msm8255_u8860_92())
 	|| (machine_is_msm8255_u8680())
 	|| (machine_is_msm8255_u8860_51())
@@ -9430,6 +9453,17 @@ MACHINE_START(MSM8255_C8860, "HUAWEI C8860 BOARD")
 	.handle_irq = vic_handle_irq,
 MACHINE_END
 MACHINE_START(MSM8255_U8860LP, "HUAWEI U8860LP BOARD")
+	.boot_params = PHYS_OFFSET + 0x100,
+    .fixup = msm7x30_fixup,
+	.map_io = msm7x30_map_io,
+	.reserve = msm7x30_reserve,
+	.init_irq = msm7x30_init_irq,
+	.init_machine = msm7x30_init,
+	.timer = &msm_timer,
+	.init_early = msm7x30_init_early,
+	.handle_irq = vic_handle_irq,
+MACHINE_END
+MACHINE_START(MSM8255_U8860_R, "HUAWEI U8860-R BOARD")
 	.boot_params = PHYS_OFFSET + 0x100,
     .fixup = msm7x30_fixup,
 	.map_io = msm7x30_map_io,
