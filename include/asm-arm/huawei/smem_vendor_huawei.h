@@ -31,7 +31,11 @@ typedef struct
 {
   app_usb_para_smem      usb_para;
   app_vender_name   vender_para;
+  unsigned char    sb_state_rs_sdata[12];/*size == sizeof(sb_smem_data_type)*/
 } smem_huawei_vender;
+
+extern smem_huawei_vender usb_para_data;
+extern void import_kernel_cmdline(void);
 
 #define COUNTRY_JAPAN   "jp"
 #define VENDOR_EMOBILE  "emobile"

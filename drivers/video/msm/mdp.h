@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2008-2012, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -22,8 +22,9 @@
 #include <linux/fb.h>
 #include <linux/hrtimer.h>
 #include <linux/msm_mdp.h>
-
+#include <linux/memory_alloc.h>
 #include <mach/hardware.h>
+#include <linux/ion.h>
 
 #ifdef CONFIG_MSM_BUS_SCALING
 #include <mach/msm_bus.h>
@@ -41,10 +42,16 @@ extern uint32 mdp_hw_revision;
 extern ulong mdp4_display_intf;
 extern spinlock_t mdp_spin_lock;
 extern int mdp_rev;
+/*< DTS2011081601583 pengyu 20110816 begin */
 #ifdef CONFIG_HUAWEI_KERNEL
 /* Extern the mdp_pipe_ctrl_mutex for process_lcd_table function */
 extern struct semaphore mdp_pipe_ctrl_mutex;
 #endif
+/* DTS2011081601583 pengyu 20110816 end >*/
+
+extern struct workqueue_struct *mdp_hist_wq;
+extern struct work_struct mdp_histogram_worker;
+extern boolean mdp_is_hist_valid;
 
 #define MDP4_REVISION_V1		0
 #define MDP4_REVISION_V2		1
@@ -70,6 +77,13 @@ extern struct semaphore mdp_pipe_ctrl_mutex;
 #define MDPOP_SHARPENING	BIT(11) /* enable sharpening */
 #define MDPOP_BLUR		BIT(12) /* enable blur */
 #define MDPOP_FG_PM_ALPHA       BIT(13)
+#define MDP_ALLOC(x)  kmalloc(x, GFP_KERNEL)
+
+struct mdp_buf_type {
+	struct ion_handle *ihdl;
+	u32 phys_addr;
+	u32 size;
+};
 
 struct mdp_table_entry {
 	uint32_t reg;
@@ -127,6 +141,7 @@ typedef enum {
 	MDP_DMA_S_BLOCK,
 	MDP_DMA_E_BLOCK,
 	MDP_OVERLAY1_BLOCK,
+	MDP_OVERLAY2_BLOCK,
 	MDP_MAX_BLOCK
 } MDP_BLOCK_TYPE;
 
@@ -227,6 +242,7 @@ struct mdp_dma_data {
 #define MDP_OVERLAY1_TERM 0x40
 #endif
 #define MDP_HISTOGRAM_TERM 0x80
+#define MDP_OVERLAY2_TERM 0x100
 
 #define ACTIVE_START_X_EN BIT(31)
 #define ACTIVE_START_Y_EN BIT(31)
@@ -599,6 +615,10 @@ struct mdp_dma_data {
 #define MDP_EBI2_LCD0		(msm_mdp_base + 0x003c)
 #define MDP_EBI2_LCD1		(msm_mdp_base + 0x0040)
 #define MDP_EBI2_PORTMAP_MODE	(msm_mdp_base + 0x005c)
+
+#define MDP_DMA_P_HIST_INTR_STATUS	(msm_mdp_base + 0x94014)
+#define MDP_DMA_P_HIST_INTR_CLEAR	(msm_mdp_base + 0x94018)
+#define MDP_DMA_P_HIST_INTR_ENABLE	(msm_mdp_base + 0x9401C)
 #endif
 
 #define MDP_FULL_BYPASS_WORD43  (msm_mdp_base + 0x101ac)
@@ -726,6 +746,9 @@ void mdp_dma_s_update(struct msm_fb_data_type *mfd);
 int mdp_start_histogram(struct fb_info *info);
 int mdp_stop_histogram(struct fb_info *info);
 int mdp_histogram_ctrl(boolean en);
+void __mdp_histogram_kickoff(void);
+void __mdp_histogram_reset(void);
+void mdp_footswitch_ctrl(boolean on);
 
 #ifdef CONFIG_FB_MSM_MDP303
 static inline void mdp4_dsi_cmd_dma_busy_wait(struct msm_fb_data_type *mfd)

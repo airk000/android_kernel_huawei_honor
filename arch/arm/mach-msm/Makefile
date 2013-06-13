@@ -1,4 +1,4 @@
-obj-y += io.o dma.o memory.o
+obj-y += io.o dma.o memory.o hardware_self_adapt.o
 ifndef CONFIG_ARM_ARCH_TIMER
 obj-y += timer.o
 endif
@@ -255,6 +255,7 @@ obj-$(CONFIG_HUAWEI_FEATURE_RGB_KEY_LIGHT) += RGB_led.o
 obj-$(CONFIG_HUAWEI_FEATURE_PTT_KEY_LIGHT) += ptt_led.o
 
 obj-$(CONFIG_HUAWEI_SMEM_SLEEP_LOG) += smem_sleep_log.o
+obj-$(CONFIG_HUAWEI_KERNEL) += smem_vendor_huawei.o
 
 obj-$(CONFIG_MACH_SAPPHIRE) += board-sapphire.o board-sapphire-gpio.o
 obj-$(CONFIG_MACH_SAPPHIRE) += board-sapphire-keypad.o board-sapphire-panel.o

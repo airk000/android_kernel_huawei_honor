@@ -1,3 +1,4 @@
+/*< DTS2011060802925 jiaoshuangwei 20110608 begin */
 /* drivers\video\msm\mddi_nt35510_type2.c
  * NT35510 LCD driver for 7x30 platform
  *
@@ -20,7 +21,7 @@
 #include <linux/pwm.h>
 #include <mach/pmic.h>
 #include "hw_backlight.h"
-#include "hw_mddi_lcd.h"
+#include "hw_lcd_common.h"
 
 
 #include "lcd_hw_debug.h"
@@ -58,12 +59,12 @@ static int nt35510_lcd_on_type2(struct platform_device *pdev)
 	/* If exist the init file ,then init lcd with it for debug */
     if( (TRUE == para_debug_flag)&&(NULL != nt35510_wvga_init_table_type2))
     {
-		ret = process_lcd_table(nt35510_wvga_init_table_type2, para_num, lcd_panel_wvga);
+		ret = process_mddi_table(nt35510_wvga_init_table_type2, para_num, lcd_panel_wvga);
     }
     else
     {
 		/* Exit Standby Mode */
-		ret = process_lcd_table((struct sequence*)&nt35510_wvga_standby_exit_table_type2, 
+		ret = process_mddi_table((struct sequence*)&nt35510_wvga_standby_exit_table_type2, 
 			ARRAY_SIZE(nt35510_wvga_standby_exit_table_type2), lcd_panel_wvga);
     }
        
@@ -74,16 +75,16 @@ static int nt35510_lcd_on_type2(struct platform_device *pdev)
 	}
 
 
-    MDDI_LCD_DEBUG("%s: nt35510_lcd exit sleep mode ,on_ret=%d\n",__func__,ret);
+    LCD_DEBUG("%s: nt35510_lcd exit sleep mode ,on_ret=%d\n",__func__,ret);
 	return ret;
 }
 
 static int nt35510_lcd_off_type2(struct platform_device *pdev)
 {
 	int ret = 0;
-	ret = process_lcd_table((struct sequence*)&nt35510_wvga_standby_enter_table_type2, 
+	ret = process_mddi_table((struct sequence*)&nt35510_wvga_standby_enter_table_type2, 
     	      		ARRAY_SIZE(nt35510_wvga_standby_enter_table_type2), lcd_panel_wvga);
-    MDDI_LCD_DEBUG("%s: nt35510_lcd_type2 enter sleep mode ,off_ret=%d\n",__func__,ret);
+    LCD_DEBUG("%s: nt35510_lcd_type2 enter sleep mode ,off_ret=%d\n",__func__,ret);
 	return ret;
 }
 
@@ -120,21 +121,21 @@ static int __init nt35510_init_type2(void)
 	struct msm_panel_info *pinfo = NULL;
 
 	bpp_type bpp = MDDI_OUT_16BPP;		
-	mddi_type mddi_port_type = mddi_port_type_probe();
+	hw_lcd_interface_type mddi_port_type = get_hw_lcd_interface_type();
 
-	lcd_panel_wvga=lcd_panel_probe();
+	lcd_panel_wvga=get_lcd_panel_type();
 	
 	if(LCD_NT35510_ALPHA_SI_WVGA_TYPE2 != lcd_panel_wvga)
 	{
 		return 0;
 	}
-	MDDI_LCD_DEBUG("%s:------nt35510_init_type2------\n",__func__);
+	LCD_DEBUG("%s:------nt35510_init_type2------\n",__func__);
 	/* Select which bpp accroding MDDI port type */
-	if(MDDI_TYPE1 == mddi_port_type)
+	if(LCD_IS_MDDI_TYPE1 == mddi_port_type)
 	{
 		bpp = MDDI_OUT_16BPP;
 	}
-	else if(MDDI_TYPE2 == mddi_port_type)
+	else if(LCD_IS_MDDI_TYPE2 == mddi_port_type)
 	{
 		bpp = MDDI_OUT_24BPP;
 	}
@@ -159,7 +160,9 @@ static int __init nt35510_init_type2(void)
 	    pinfo->clk_min = 192000000;
 	    pinfo->clk_max = 192000000;
         pinfo->lcd.vsync_enable = TRUE;
-        pinfo->lcd.refx100 = 5500;
+		/*< DTS2012021007223 lijianzhao 20120211 begin */
+        pinfo->lcd.refx100 = 6000;
+		/* DTS2012021007223 lijianzhao 20120211 end >*/
 		pinfo->lcd.v_back_porch = 0;
 		pinfo->lcd.v_front_porch = 0;
 		pinfo->lcd.v_pulse_width = 22;
@@ -177,3 +180,4 @@ static int __init nt35510_init_type2(void)
 	return ret;
 }
 module_init(nt35510_init_type2);
+/* DTS2011060802925 jiaoshuangwei 20110608 end >*/

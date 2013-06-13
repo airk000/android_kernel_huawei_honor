@@ -1479,9 +1479,11 @@ char *get_touch_info(void)
 	if (touch_info != NULL)
 		return touch_info;
 
+#ifdef CONFIG_HUAWEI_MELFAS_TOUCHSCREEN
 	touch_info = get_melfas_touch_info();
 	if (touch_info != NULL)
 		return touch_info;
+#endif
 
 	/* < DTS2012070604482 fengzhiqiang 20120712 begin */
     touch_info = get_atmel_touch_info();

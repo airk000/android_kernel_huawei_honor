@@ -1,4 +1,4 @@
-/* Copyright (c) 2009-2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2009-2012, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -41,8 +41,6 @@
 
 int first_pixel_start_x;
 int first_pixel_start_y;
-
-static int writeback_offset;
 
 static struct mdp4_overlay_pipe *lcdc_pipe;
 static struct completion lcdc_comp;
@@ -128,14 +126,9 @@ int mdp_lcdc_on(struct platform_device *pdev)
 		lcdc_pipe = pipe; /* keep it */
 		init_completion(&lcdc_comp);
 
-		writeback_offset = mdp4_writeback_offset();
+		mdp4_init_writeback_buf(mfd, MDP4_MIXER0);
+		pipe->blt_addr = 0;
 
-		if (writeback_offset > 0) {
-			pipe->blt_base = (ulong)fbi->fix.smem_start;
-			pipe->blt_base += writeback_offset;
-		} else {
-			pipe->blt_base  = 0;
-		}
 	} else {
 		pipe = lcdc_pipe;
 	}
@@ -392,13 +385,6 @@ static void mdp4_overlay_lcdc_dma_busy_wait(struct msm_fb_data_type *mfd)
 	pr_debug("%s: done pid=%d\n", __func__, current->pid);
 }
 
-void mdp4_overlay_lcdc_set_perf(struct msm_fb_data_type *mfd)
-{
-	mdp4_overlay_lcdc_wait4event(mfd, INTR_DMA_P_DONE);
-	/* change mdp clk while mdp is idle */
-	mdp4_set_perf_level();
-}
-
 void mdp4_overlay_lcdc_vsync_push(struct msm_fb_data_type *mfd,
 			struct mdp4_overlay_pipe *pipe)
 {
@@ -428,6 +414,7 @@ void mdp4_overlay_lcdc_vsync_push(struct msm_fb_data_type *mfd,
 	} else {
 		mdp4_overlay_lcdc_wait4event(mfd, INTR_PRIMARY_VSYNC);
 	}
+	mdp4_set_perf_level();
 }
 
 /*
@@ -473,14 +460,16 @@ static void mdp4_lcdc_do_blt(struct msm_fb_data_type *mfd, int enable)
 	unsigned long flag;
 	int change = 0;
 
-	if (lcdc_pipe->blt_base == 0) {
+	mdp4_allocate_writeback_buf(mfd, MDP4_MIXER0);
+
+	if (!mfd->ov0_wb_buf->phys_addr) {
 		pr_debug("%s: no blt_base assigned\n", __func__);
 		return;
 	}
 
 	spin_lock_irqsave(&mdp_spin_lock, flag);
 	if (enable && lcdc_pipe->blt_addr == 0) {
-		lcdc_pipe->blt_addr = lcdc_pipe->blt_base;
+		lcdc_pipe->blt_addr = mfd->ov0_wb_buf->phys_addr;
 		change++;
 		lcdc_pipe->blt_cnt = 0;
 		lcdc_pipe->ov_cnt = 0;
@@ -507,7 +496,7 @@ static void mdp4_lcdc_do_blt(struct msm_fb_data_type *mfd, int enable)
 int mdp4_lcdc_overlay_blt_offset(struct msm_fb_data_type *mfd,
 					struct msmfb_overlay_blt *req)
 {
-	req->offset = writeback_offset;
+	req->offset = 0;
 	req->width = lcdc_pipe->src_width;
 	req->height = lcdc_pipe->src_height;
 	req->bpp = lcdc_pipe->bpp;

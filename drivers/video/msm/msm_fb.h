@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2008-2012, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -37,7 +37,6 @@
 #include <linux/fb.h>
 #include <linux/list.h>
 #include <linux/types.h>
-#include <linux/ion.h>
 
 #include <linux/msm_mdp.h>
 #ifdef CONFIG_HAS_EARLYSUSPEND
@@ -165,16 +164,20 @@ struct msm_fb_data_type {
 	struct timer_list msmfb_no_update_notify_timer;
 	struct completion msmfb_update_notify;
 	struct completion msmfb_no_update_notify;
-	u32 ov_start, ov_end;
 	struct mutex writeback_mutex;
 	struct mutex unregister_mutex;
 	struct list_head writeback_busy_queue;
 	struct list_head writeback_free_queue;
 	struct list_head writeback_register_queue;
-	wait_queue_head_t		wait_q;
-	struct ion_client *client;
+	wait_queue_head_t wait_q;
+	struct ion_client *iclient;
+	struct mdp_buf_type *ov0_wb_buf;
+	struct mdp_buf_type *ov1_wb_buf;
+	u32 ov_start;
+	u32 mem_hid;
 	u32 mdp_rev;
 	u32 use_ov0_blt, ov0_blt_state;
+	u32 writeback_state;
 };
 
 struct dentry *msm_fb_get_debugfs_root(void);
@@ -185,14 +188,12 @@ void msm_fb_set_backlight(struct msm_fb_data_type *mfd, __u32 bkl_lvl);
 struct platform_device *msm_fb_add_device(struct platform_device *pdev);
 struct fb_info *msm_fb_get_writeback_fb(void);
 int msm_fb_writeback_init(struct fb_info *info);
-int msm_fb_writeback_register_buffer(struct fb_info *info,
-		struct msmfb_writeback_data *data);
+int msm_fb_writeback_start(struct fb_info *info);
 int msm_fb_writeback_queue_buffer(struct fb_info *info,
 		struct msmfb_data *data);
 int msm_fb_writeback_dequeue_buffer(struct fb_info *info,
 		struct msmfb_data *data);
-int msm_fb_writeback_unregister_buffer(struct fb_info *info,
-		struct msmfb_writeback_data *data);
+int msm_fb_writeback_stop(struct fb_info *info);
 int msm_fb_writeback_terminate(struct fb_info *info);
 int msm_fb_detect_client(const char *name);
 

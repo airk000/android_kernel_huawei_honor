@@ -35,7 +35,10 @@
 struct i2c_client *sx150x_client;
 
 #define CAMERA_LED_TORCH_MA 50
-#define PM8058_GPIO_PM_TO_SYS(pm_gpio)     (pm_gpio + NR_GPIO_IRQS)*/
+#define CAMERA_LED_TORCH_LOW_MA    50
+#define CAMERA_LED_TORCH_MIDDLE_MA 100
+#define CAMERA_LED_TORCH_HIGH_MA   150
+//#define PM8058_GPIO_PM_TO_SYS(pm_gpio)     (pm_gpio + NR_GPIO_IRQS)*/
 static struct  pm_gpio camera_flash = {
 		.direction      = PM_GPIO_DIR_OUT,
 		.output_buffer  = PM_GPIO_OUT_BUF_CMOS,
@@ -395,7 +398,27 @@ static int msm_camera_flash_pwm(
 		if (rc >= 0)
 			rc = pwm_enable(flash_pwm);
 		break;
-
+    case MSM_CAMERA_LED_TORCH_LOW:
+        rc = pwm_config(flash_pwm,
+			(PWM_PERIOD/pwm->max_load)*CAMERA_LED_TORCH_LOW_MA,
+			PWM_PERIOD);
+		if (rc >= 0)
+			rc = pwm_enable(flash_pwm);
+        break;
+    case MSM_CAMERA_LED_TORCH_MIDDLE:
+        rc = pwm_config(flash_pwm,
+			(PWM_PERIOD/pwm->max_load)*CAMERA_LED_TORCH_MIDDLE_MA,
+			PWM_PERIOD);
+		if (rc >= 0)
+			rc = pwm_enable(flash_pwm);
+        break;
+    case MSM_CAMERA_LED_TORCH_HIGH:
+        rc = pwm_config(flash_pwm,
+			(PWM_PERIOD/pwm->max_load)*CAMERA_LED_TORCH_HIGH_MA,
+			PWM_PERIOD);
+		if (rc >= 0)
+			rc = pwm_enable(flash_pwm);
+        break;
 	case MSM_CAMERA_LED_OFF:
 		pwm_disable(flash_pwm);
 		break;

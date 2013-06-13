@@ -144,8 +144,6 @@ struct regulator *vreg_gp4 = NULL;
 #include <asm-arm/huawei/smem_vendor_huawei.h>
 #include "../../../drivers/usb/gadget/usb_switch_huawei.h"
 
-/* keep the parameters transmitted from SMEM */
-smem_huawei_vender usb_para_data;
 #endif
 
 #ifdef CONFIG_FB_MSM_TRIPLE_BUFFER
@@ -157,7 +155,7 @@ smem_huawei_vender usb_para_data;
 #else
 #define MSM_FB_SIZE            0x500000
 #endif
-#define MSM_PMEM_ADSP_SIZE      0x2400000
+#define MSM_PMEM_ADSP_SIZE      0x2800000
 
 #define MSM_FLUID_PMEM_ADSP_SIZE	0x2800000
 #define PMEM_KERNEL_EBI0_SIZE   0x600000
@@ -258,72 +256,6 @@ static unsigned int sub_board_id = 0;
 #ifdef CONFIG_HUAWEI_POWER_DOWN_CHARGE
 static unsigned int charge_flag = 0;
 #endif
-compass_gs_position_type  get_compass_gs_position(void)
-{
-	compass_gs_position_type compass_gs_position=COMPASS_TOP_GS_TOP;
-	
-	if((machine_is_msm7x30_u8800()) 
-		|| (machine_is_msm7x30_u8820()) 
-		|| (machine_is_msm7x30_u8800_51())
-		|| (machine_is_msm8255_u8800_pro())
-		|| (machine_is_msm8255_u8860()) 
-		|| (machine_is_msm8255_c8860()) 
-		|| (machine_is_msm8255_u8860lp())
-		|| (machine_is_msm8255_u8860_92())            
-		|| (machine_is_msm8255_u8860_51()))
-	{
-		compass_gs_position=COMPASS_BOTTOM_GS_BOTTOM;
-	}
-	else if(machine_is_msm8255_u8680() 
-	        || machine_is_msm8255_u8730())
-	{
-	    compass_gs_position=COMPASS_TOP_GS_TOP;
-	}
-	else
-	{
-		compass_gs_position=COMPASS_TOP_GS_TOP;
-	}
-	return compass_gs_position;
-}
-/*return the string by compass position*/
-char *get_compass_gs_position_name(void)
-{
-	compass_gs_position_type compass_gs_position=COMPASS_TOP_GS_TOP;
-	char *position_name=NULL;
-
-	compass_gs_position = get_compass_gs_position();
-
-	switch(compass_gs_position)
-	{
-		case COMPASS_TOP_GS_TOP:
-			 position_name = "COMPASS_TOP_GS_TOP";
-			 break;
-			 
-		case COMPASS_TOP_GS_BOTTOM:
-			 position_name = "COMPASS_TOP_GS_BOTTOM";
-			 break;
-
-		case COMPASS_BOTTOM_GS_TOP:
-			 position_name = "COMPASS_BOTTOM_GS_TOP";
-			 break;
-
-		case COMPASS_BOTTOM_GS_BOTTOM:
-			 position_name = "COMPASS_BOTTOM_GS_BOTTOM";
-			 break;
-			 
-		case COMPASS_NONE_GS_BOTTOM:
-			 position_name = "COMPASS_NONE_GS_BOTTOM";
-			 break;
-
-		default:
-			 position_name = "COMPASS_TOP_GS_TOP";
-			 break;
-	}
-
-	return position_name;
-	
-}
-
 struct pm8xxx_gpio_init_info {
 	unsigned			gpio;
 	struct pm_gpio			config;
@@ -2174,6 +2106,7 @@ static int __init snddev_hac_gpio_init(void)
         audio_hac_gpio_config = GPIO_CFG(33, 0, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA);
     } else if (machine_is_msm8255_u8860() 
     			|| machine_is_msm8255_u8860lp()
+                || machine_is_msm8255_u8860_r()
     			|| machine_is_msm8255_u8860_92()
                 || machine_is_msm8255_u8680()
 				|| machine_is_msm8255_u8860_51()
@@ -3659,178 +3592,6 @@ static struct platform_device android_usb_device = {
 };
 #endif
 
-#ifdef CONFIG_HUAWEI_KERNEL
-/*
- * usb parameters processor: get usb parameters from SMEM inlcuding
- * usb_pid_index, bluetooth address, vendor name and country name.
- * And then initialize globle variable usb_para_info.
- * Return value: void
- * Side effect : none
- */
-static void proc_usb_para(void)
-{
-	smem_huawei_vender *usb_para_ptr;
-
-	USB_PR("%s\n", __func__);
-
-	/* read usb parameters and vendor form SMEM */
-	usb_para_ptr = (smem_huawei_vender*)smem_alloc(SMEM_ID_VENDOR0, sizeof(smem_huawei_vender));
-	if (!usb_para_ptr)
-	{
-		USB_PR("%s: Can't find usb parameters!\n", __func__);
-		return;
-	}
-
-	memcpy(&usb_para_data, usb_para_ptr, sizeof(smem_huawei_vender));
-
-	USB_PR("SMEM sb_serial=%s, usb_pid_index=%d\n", usb_para_data.usb_para.usb_serial,
-            usb_para_data.usb_para.usb_pid_index);
-    
-    USB_PR("SMEM vendor=%s,country=%s\n", usb_para_data.vender_para.vender_name,
-            usb_para_data.vender_para.country_name);
-}
-#endif  /* CONFIG_HUAWEI_KERNEL */
-
-/*remove the statements about m33c01*/
-
-/* kernel29 -> kernel32 driver modify*/
-/* delete some lines*/
-lcd_panel_type lcd_panel_probe(void)
-{
-    lcd_panel_type hw_lcd_panel = LCD_NONE;
-	if ((machine_is_msm7x30_u8800()) || (machine_is_msm7x30_u8820()) || (machine_is_msm7x30_u8800_51()) || (machine_is_msm8255_u8800_pro()))
-	{
-		switch (lcd_id)
-		{
-			case 0:  
-				hw_lcd_panel = LCD_NT35582_BYD_WVGA;
-			break;
-		 	case 1:  
-				hw_lcd_panel = LCD_NT35582_TRULY_WVGA;
-			break;
-			/* NT35510 alpha_si is MDDI type2 LCD */
-			case 2:  
-				hw_lcd_panel = LCD_NT35510_ALPHA_SI_WVGA;
-			break;
-			/* NT35510 alpha_si is MDDI type2 LCD */
-			case 3:  
-				hw_lcd_panel = LCD_NT35510_ALPHA_SI_WVGA_TYPE2;
-			break;
-			default : 
-				hw_lcd_panel = LCD_NONE;
-			break;					  
-		}
-	}
-    else if (machine_is_msm8255_u8860() 
-			|| machine_is_msm8255_c8860() 
-			|| machine_is_msm8255_u8860lp()
-			|| machine_is_msm8255_u8860_92()
-			|| machine_is_msm8255_u8860_51())
-	{
-		switch (lcd_id)
-		{
-            case 0:
-				hw_lcd_panel = LCD_NT35560_TOSHIBA_FWVGA;
-				break;
-			default : 
-				hw_lcd_panel = LCD_NONE;
-				break;					  
-		}
-	}
-	else if( machine_is_msm8255_u8680()
-	    || (machine_is_msm8255_u8730()))
-	{
-		switch (lcd_id)
-		{
-            case 0:
-				hw_lcd_panel = LCD_RSP61408_CHIMEI_WVGA;
-				break;
-			default : 
-				hw_lcd_panel = LCD_RSP61408_CHIMEI_WVGA;
-				break;					  
-		}
-	}
-    /*delet one line to avoid too much logs*/
-    return hw_lcd_panel;
-
-}
-
-
-char *get_lcd_panel_name(void)
-{
-    lcd_panel_type hw_lcd_panel = LCD_NONE;
-    char *pname = NULL;
-    
-    hw_lcd_panel = lcd_panel_probe();
-    
-    switch (hw_lcd_panel)
-    {
-     case LCD_S6D74A0_SAMSUNG_HVGA:
-            pname = "SAMSUNG S6D74A0";
-            break;
-            
-        case LCD_ILI9325_INNOLUX_QVGA:
-            pname = "INNOLUX ILI9325";
-            break;
-
-        case LCD_ILI9325_BYD_QVGA:
-            pname = "BYD ILI9325";
-            break;
-
-        case LCD_ILI9325_WINTEK_QVGA:
-            pname = "WINTEK ILI9325";
-            break;
-
-        case LCD_SPFD5408B_KGM_QVGA:
-            pname = "KGM SPFD5408B";
-            break;
-
-        case LCD_HX8357A_BYD_QVGA:
-            pname = "BYD HX8357A";
-            break;
-
-        case LCD_HX8368A_SEIKO_QVGA:
-            pname = "SEIKO HX8368A";
-            break;
-			
-        case LCD_HX8347D_TRULY_QVGA:
-            pname = "TRULY HX8347D";
-            break;
-			
-        case LCD_ILI9325C_WINTEK_QVGA:
-            pname = "WINTEK ILI9325C";
-            break;
-						
-        case LCD_NT35582_BYD_WVGA:
-            pname = "BYD NT35582";
-            break;
-            
-        case LCD_NT35582_TRULY_WVGA:
-            pname = "TRULY NT35582";
-            break;
-
-    	case LCD_NT35560_TOSHIBA_FWVGA:
-		    pname = "TOSHIBA NT35560";
-			break;
-
-    	case LCD_NT35510_ALPHA_SI_WVGA:
-		    pname = "TRULY NT35510";
-            break;
-            
-       /* set the lcd name is SUCCESS NT_35510 */
-    	case LCD_NT35510_ALPHA_SI_WVGA_TYPE2:
-		    pname = "SUCCESS NT35510";
-            break;
-		case LCD_RSP61408_CHIMEI_WVGA:
-			pname = "CHIMEI RSP61408";
-			break;
-        default:
-            pname = "UNKNOWN LCD";
-            break;
-    }
-
-    return pname;
-}
 static int gsensor_support_dummyaddr(void)
 {
     int ret = -1;	/*default value means actual address*/
@@ -8857,7 +8618,7 @@ static void __init msm7x30_init(void)
 	/* removed several lines */
 
 #ifdef CONFIG_HUAWEI_KERNEL
-	proc_usb_para();
+    import_kernel_cmdline();
 #endif
 
 #ifdef CONFIG_USB_MSM_OTG_72K
@@ -9169,6 +8930,7 @@ static void __init msm7x30_map_io(void)
 		printk(KERN_ERR "%s: socinfo_init() failed!\n",
 		       __func__);
 }
+#if 0
 #define ATAG_CAMERA_ID 0x4d534D74
 /* setup calls mach->fixup, then parse_tags, parse_cmdline
  * We need to setup meminfo in mach->fixup, so this function
@@ -9296,18 +9058,19 @@ hw_ver_sub_type get_hw_sub_board_id(void)
 {
     return (hw_ver_sub_type)(sub_board_id&HW_VER_SUB_MASK);
 }
-
+#endif
+static void __init msm7x30_fixup(struct machine_desc *desc,
+                                 struct tag *tags,
+                                 char **cmdline,
+                                 struct meminfo *mi)
+{
+	return ;    
+}
 static void __init msm7x30_init_early(void)
 {
 	msm7x30_allocate_memory_regions();
 }
 
-#ifdef CONFIG_HUAWEI_POWER_DOWN_CHARGE
-unsigned int get_charge_flag(void)
-{
-    return charge_flag;
-}
-#endif
 
 MACHINE_START(MSM7X30_SURF, "QCT MSM7X30 SURF")
 	.boot_params = PLAT_PHYS_OFFSET + 0x100,

@@ -1,7 +1,7 @@
 /* arch/arm/mach-msm/include/mach/board.h
  *
  * Copyright (C) 2007 Google, Inc.
- * Copyright (c) 2008-2011, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2008-2012, Code Aurora Forum. All rights reserved.
  * Author: Brian Swetland <swetland@google.com>
  *
  * This software is licensed under the terms of the GNU General Public
@@ -326,7 +326,9 @@ struct msm_panel_common_pdata {
 	struct msm_bus_scale_pdata *mdp_bus_scale_table;
 #endif
 	int mdp_rev;
-	int (*writeback_offset)(void);
+	u32 ov0_wb_size;  /* overlay0 writeback size */
+	u32 ov1_wb_size;  /* overlay1 writeback size */
+	u32 mem_hid;
 };
 
 struct lcdc_platform_data {
@@ -421,6 +423,7 @@ struct msm_vidc_platform_data {
 	int memtype;
 	u32 enable_ion;
 	int disable_dmx;
+	int disable_fullhd;
 #ifdef CONFIG_MSM_BUS_SCALING
 	struct msm_bus_scale_pdata *vidc_bus_client_pdata;
 #endif
