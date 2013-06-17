@@ -647,7 +647,7 @@ static int hi701_sensor_init_done(const struct msm_camera_sensor_info *data)
     msleep(100);
     if (data->vreg_disable_func)
     {
-        data->vreg_disable_func(data->sensor_vreg, data->vreg_num);
+        data->vreg_disable_func(0);
     }
 
     return 0;
@@ -683,11 +683,7 @@ static int hi701_probe_init_sensor(const struct msm_camera_sensor_info *data)
 
     if (data->vreg_enable_func)
     {
-        rc = data->vreg_enable_func(data->sensor_vreg, data->vreg_num);
-        if (rc < 0)
-        {
-            goto init_probe_fail;
-        }
+        data->vreg_enable_func(1);
     }
 
     msleep(20);

@@ -1259,7 +1259,7 @@ static int mt9p017_probe_init_done(const struct msm_camera_sensor_info *data)
 
     if (data->vreg_disable_func)
     {
-        data->vreg_disable_func(data->sensor_vreg, data->vreg_num);
+        data->vreg_disable_func(0);
     }
     
     return 0;
@@ -1295,11 +1295,7 @@ static int mt9p017_probe_init_sensor(const struct msm_camera_sensor_info *data)
 
     if (data->vreg_enable_func)
     {
-        rc = data->vreg_enable_func(data->sensor_vreg, data->vreg_num);
-        if (rc < 0)
-        {
-            goto init_probe_fail;
-        }
+            data->vreg_enable_func(1);
     }
 
     mdelay(20);
@@ -1699,6 +1695,11 @@ int mt9p017_sensor_release(void)
     gpio_direction_output(mt9p017_ctrl->sensordata->vcm_pwd, 0);
     gpio_free(mt9p017_ctrl->sensordata->vcm_pwd);
 
+    /*disable the power*/
+    if (mt9p017_ctrl->sensordata->vreg_disable_func)
+    {
+        mt9p017_ctrl->sensordata->vreg_disable_func(0);
+    }
     kfree(mt9p017_ctrl);
     mt9p017_ctrl = NULL;
 

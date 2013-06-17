@@ -869,7 +869,7 @@ static int32_t mt9e013_power_down(void)
 {
 	if (mt9e013_ctrl->sensordata->vreg_disable_func)
     {
-        mt9e013_ctrl->sensordata->vreg_disable_func(mt9e013_ctrl->sensordata->sensor_vreg, mt9e013_ctrl->sensordata->vreg_num);
+        mt9e013_ctrl->sensordata->vreg_disable_func(0);
     }
 	return 0;
 }
@@ -880,7 +880,7 @@ static int mt9e013_probe_init_done(const struct msm_camera_sensor_info *data)
 	gpio_free(data->sensor_reset);
 	if (data->vreg_disable_func)
     {
-        data->vreg_disable_func(data->sensor_vreg, data->vreg_num);
+		data->vreg_disable_func(0);
     }
 	return 0;
 }
@@ -893,11 +893,7 @@ static int mt9e013_probe_init_sensor(const struct msm_camera_sensor_info *data)
 
     if (data->vreg_enable_func)
     {
-        rc = data->vreg_enable_func(data->sensor_vreg, data->vreg_num);
-        if (0 != rc)
-        {
-            CDBG(" mt9e013_probe_init_sensor : vreg_enable_func  failed!! \n");
-        }
+		data->vreg_enable_func(1);
     }
 
 	

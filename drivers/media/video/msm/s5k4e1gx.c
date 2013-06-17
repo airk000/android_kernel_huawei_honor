@@ -517,7 +517,7 @@ static int s5k4e1gx_probe_init_done(const struct msm_camera_sensor_info *data)
     /*probe finish ,power down camera*/
     if (data->vreg_disable_func)
     {
-        data->vreg_disable_func(data->sensor_vreg, data->vreg_num);
+        data->vreg_disable_func(0);
     }
 
     return 0;
@@ -543,7 +543,7 @@ static int s5k4e1gx_probe_init_sensor(const struct msm_camera_sensor_info *data)
 
     if (data->vreg_enable_func)
     {
-        data->vreg_enable_func(data->sensor_vreg, data->vreg_num);
+        data->vreg_enable_func(1);
     }
 
     rc = gpio_request(data->sensor_reset, "s5k4e1gx");
@@ -862,8 +862,7 @@ static int32_t s5k4e1gx_power_down(void)
 
     if (s5k4e1gx_ctrl->sensordata->vreg_disable_func)
     {
-        rc = s5k4e1gx_ctrl->sensordata->vreg_disable_func(s5k4e1gx_ctrl->sensordata->sensor_vreg,
-                                                          s5k4e1gx_ctrl->sensordata->vreg_num);
+        s5k4e1gx_ctrl->sensordata->vreg_disable_func(0);
     }
 
     return rc;

@@ -348,7 +348,7 @@ static int ov7690_sensor_init_done(const struct msm_camera_sensor_info *data)
 
      if (data->vreg_disable_func)
     {
-        data->vreg_disable_func(data->sensor_vreg, data->vreg_num);
+        data->vreg_disable_func(0);
     }
 
     return rc;
@@ -375,7 +375,7 @@ static int ov7690_sensor_init_probe(const struct msm_camera_sensor_info *data)
 
     if (data->vreg_enable_func)
     {
-        data->vreg_enable_func(data->sensor_vreg, data->vreg_num);
+        data->vreg_enable_func(1);
     }
 
     mdelay(OV7690_RESET_DELAY_MSECS);

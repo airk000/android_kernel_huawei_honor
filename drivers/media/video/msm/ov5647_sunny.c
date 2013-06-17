@@ -759,8 +759,7 @@ static int32_t ov5647_sunny_power_down(void)
     int32_t rc = 0;
     if(ov5647_sunny_ctrl->sensordata->vreg_disable_func)
     {
-        rc = ov5647_sunny_ctrl->sensordata->vreg_disable_func(ov5647_sunny_ctrl->sensordata->sensor_vreg,
-                                                                                       ov5647_sunny_ctrl->sensordata->vreg_num);
+        ov5647_sunny_ctrl->sensordata->vreg_disable_func(0);
     }
     return rc;
 }
@@ -890,7 +889,7 @@ static int ov5647_sunny_probe_init_done(const struct msm_camera_sensor_info *dat
 /*probe finish ,power down camera*/
     if (data->vreg_disable_func)
     {
-        data->vreg_disable_func(data->sensor_vreg, data->vreg_num);
+        data->vreg_disable_func(0);
     }
     return 0;
 }
@@ -949,11 +948,7 @@ static int ov5647_sunny_probe_init_sensor(const struct msm_camera_sensor_info *d
 
     if (data->vreg_enable_func)
     {
-        rc = data->vreg_enable_func(data->sensor_vreg, data->vreg_num);
-        if (0 != rc)
-        {
-            CDBG(" ov5647_sunny_probe_init_sensor : vreg_enable_func  failed!! \n");
-        }
+        data->vreg_enable_func(1);
     }
     mdelay( 6 );
 

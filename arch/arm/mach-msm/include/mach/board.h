@@ -209,8 +209,8 @@ struct msm_camera_sensor_info {
 	#ifdef CONFIG_HUAWEI_CAMERA
 	struct msm_camera_sensor_vreg *sensor_vreg;
 	uint8_t vreg_num;
-	int32_t (*vreg_enable_func) (struct msm_camera_sensor_vreg*,uint8_t);
-	int32_t (*vreg_disable_func)(struct msm_camera_sensor_vreg*,uint8_t);
+	void (*vreg_enable_func) (int);
+	void (*vreg_disable_func) (int);
 	int slave_sensor;
 	#endif
 	int sensor_reset_enable;
