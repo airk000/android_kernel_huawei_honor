@@ -22,6 +22,11 @@ enum aps_12d_reg{
   APS_12D_REG_CMD2     =0x01,
   APS_12D_DATA_LSB     =0x02,
   APS_12D_DATA_MSB     =0x03,
+  APS_INT_LT_LSB       =0x04,
+  APS_INT_LT_MSB       =0x05,
+  APS_INT_HT_LSB       =0x06,
+  APS_INT_HT_MSB       =0x07,
+  APS_TEST             =0x08,
 };
 
 enum aps_12d_op_mode{
@@ -34,7 +39,17 @@ enum aps_12d_op_mode{
   APS_12D_IR_CONTINUOUS            =0xC0,
   APS_12D_PROXIMITY_CONTINUOUS     =0xE0,
 };
-
+/*add intersil's current value*/
+enum aps_12d_irdr_sel_intersil{
+  APS_12D_IRDR_SEL_INTERSIL_12P5MA        =0x00,
+  APS_12D_IRDR_SEL_INTERSIL_25MA          =0x01,
+  APS_12D_IRDR_SEL_INTERSIL_50MA          =0x02,
+  APS_12D_IRDR_SEL_INTERSIL_100MA         =0x03,
+};
+typedef enum everlight_intersil_flag{  
+    INTERSIL       =0,
+    EVERLIGHT      =1,
+}EVE_INTER_F;
 enum aps_12d_irdr_sel{
   APS_12D_IRDR_SEL_50MA       =0x00,
   APS_12D_IRDR_SEL_25MA       =0x01,
@@ -48,7 +63,22 @@ enum aps_12d_modulation_freq_sel{
   APS_12D_FREQ_SEL_NA1        =0x02,
   APS_12D_FREQ_SEL_40P96KHZ   =0x03,
 };
-
+/*add intersil's freq value*/
+enum aps_modulation_freq_intersil{
+  APS_FREQ_INTERSIL_DC            =0x00,
+  APS_FREQ_INTERSIL_360KHZ        =0x01,
+};
+/*add intersil's adc value*/
+enum aps_resolution_intersil{
+    APS_ADC_16          =0x00,
+    APS_ADC_12          =0x01,
+    APS_ADC_8           =0x02,
+    APS_ADC_4           =0x03,
+};
+enum aps_intersil_scheme{
+    APS_INTERSIL_SCHEME_OFF=0x00,
+    APS_INTERSIL_SCHEME_ON =0x80,
+};
 enum aps_12d_resolution_sel{
   APS_12D_RES_SEL_12          =0x00,
 };

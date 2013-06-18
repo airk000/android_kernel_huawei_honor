@@ -207,10 +207,10 @@ static struct snddev_icodec_data snddev_iearpiece_data_u8800_51 = {
 	.pamp_on = NULL,
 	.pamp_off = NULL,
 	.property = SIDE_TONE_MASK,
-	.max_voice_rx_vol[VOC_NB_INDEX] = -200,
-	.min_voice_rx_vol[VOC_NB_INDEX] = -1700,
-	.max_voice_rx_vol[VOC_WB_INDEX] = -200,
-	.min_voice_rx_vol[VOC_WB_INDEX] = -1700
+	.max_voice_rx_vol[VOC_NB_INDEX] = 700,  //-200 ~ -1700
+	.min_voice_rx_vol[VOC_NB_INDEX] = -800,
+	.max_voice_rx_vol[VOC_WB_INDEX] = 700,
+	.min_voice_rx_vol[VOC_WB_INDEX] = -800
 };
 
 static struct platform_device msm_iearpiece_device_u8800_51 = {
@@ -1388,7 +1388,7 @@ static struct snddev_icodec_data snddev_ispeaker_rx_data_u8800_51 = {
 	.capability = (SNDDEV_CAP_RX | SNDDEV_CAP_VOICE),
 	.name = "speaker_stereo_rx",
 	.copp_id = 0,
-	.acdb_id = ACDB_ID_SPKR_PHONE_MONO, //7,
+	.acdb_id = ACDB_ID_HEADSET_MONO_PLUS_SPKR_MONO_RX,  //ACDB_ID_SPKR_PHONE_MONO, //7,
 	.profile = &ispeaker_rx_profile_u8800_51,
 	.channel_mode = 1,//single channel for u8800_51
 	.pmctl_id = NULL,
@@ -1396,10 +1396,10 @@ static struct snddev_icodec_data snddev_ispeaker_rx_data_u8800_51 = {
 	.default_sample_rate = 48000,
 	.pamp_on = &msm_snddev_poweramp_on,
 	.pamp_off = &msm_snddev_poweramp_off,
-	.max_voice_rx_vol[VOC_NB_INDEX] = 200, 
-	.min_voice_rx_vol[VOC_NB_INDEX] = -1300, 
-	.max_voice_rx_vol[VOC_WB_INDEX] = 200, 
-	.min_voice_rx_vol[VOC_WB_INDEX] = -1300  
+	.max_voice_rx_vol[VOC_NB_INDEX] = 600,
+	.min_voice_rx_vol[VOC_NB_INDEX] = -900,
+	.max_voice_rx_vol[VOC_WB_INDEX] = 600,
+	.min_voice_rx_vol[VOC_WB_INDEX] = -900
 };
 
 static struct platform_device msm_ispeaker_rx_device_u8800_51 = {

@@ -64,6 +64,8 @@ module_param_named(aps_debug, aps_debug_mask, int,
 
 static struct workqueue_struct *aps_wq;
 
+static u8 old_lsb = 1;
+static u8 old_msb = 1;
 struct aps_data {
 	uint16_t addr;
 	struct i2c_client *client;
@@ -75,12 +77,14 @@ struct aps_data {
 };
 
 static struct aps_data  *this_aps_data;
+static EVE_INTER_F intersil_flag = EVERLIGHT;
 
 extern struct input_dev *sensor_dev;
 
 static int aps_12d_delay = APS_12D_TIMRER;     /*1s*/
 static int aps_12d_timer_count = 0;
 
+static char light_device_id[] = "EVERLIGHT-12D";
 
 static int aps_first_read = 1;
 /* use this to make sure which device is open and make a wake lcok*/
@@ -95,14 +99,21 @@ static int proximity_data_value = 0;
 static int light_data_value = 0;
 
 #define LSENSOR_MAX_LEVEL 7
-static uint16_t lsensor_adc_table[LSENSOR_MAX_LEVEL] = {
-	/*20, 32, 48, 64, 256, 1024, 4096 */
-	5, 20, 32 , 64, 256, 640, 1024
+/* < DTS2012050900892 yangbo 20120509 begin */
+static uint16_t lsensor_adc_table[LSENSOR_MAX_LEVEL] = 
+{
+	22, 40, 65, 110, 256, 640, 1024
 };
-
-/*static uint16_t lsensor_lux_table[LSENSOR_MAX_LEVEL] = {
-	10, 225, 320, 640, 1280, 2600, 10240
-};*/
+/* add U8861 proximity and lsensor */
+static uint16_t lsensor_adc_U8661_table[LSENSOR_MAX_LEVEL] = 
+{
+	22, 40, 65, 110, 256, 640, 1024
+};
+static uint16_t lsensor_adc_U8661_Inter_table[LSENSOR_MAX_LEVEL] = 
+{
+	30, 50, 80, 120, 256, 640, 1024
+};
+/* DTS2012050900892 yangbo 20120509 end > */
 
 #define 	TOTAL_RANGE_NUM 	2	/* aps-12d has 4 types of range,but we use two range */
 #define 	MAX_ADC_OUTPUT  	4096	/* adc max value */
@@ -113,9 +124,16 @@ static unsigned int range_index = 0;
 static unsigned int adjust_time = 0;
 static int last_event = -1;
 
-static unsigned int low_threshold_value[TOTAL_RANGE_NUM] =  {400,10};
-static unsigned int high_threshold_value[TOTAL_RANGE_NUM] = {450,12};
-static unsigned int err_threshold_value[TOTAL_RANGE_NUM] = {4096,50};
+/* < DTS2012050900892 yangbo 20120509 begin */
+/*adjust the proximity limited value*/
+static unsigned int low_threshold_value_U8661[TOTAL_RANGE_NUM]  = {300, 35};
+static unsigned int high_threshold_value_U8661[TOTAL_RANGE_NUM] = {580, 40};
+static unsigned int low_threshold_value_U8661_I[TOTAL_RANGE_NUM]  = {180, 50};
+static unsigned int high_threshold_value_U8661_I[TOTAL_RANGE_NUM] = {200, 55};
+static unsigned int power_threshold_value[TOTAL_RANGE_NUM] = {APS_12D_IRDR_SEL_25MA,APS_12D_IRDR_SEL_50MA};
+/*changge the err threshold value for U8510*/
+static unsigned int err_threshold_value[TOTAL_RANGE_NUM] = {4096,0};
+/* DTS2012050900892 yangbo 20120509 end > */
 
 static unsigned int range_reg_value[TOTAL_RANGE_NUM] = { APS_12D_RANGE_SEL_ALS_1000, \
 						     APS_12D_RANGE_SEL_ALS_64000 };
@@ -124,7 +142,9 @@ static unsigned int down_range_value[TOTAL_RANGE_NUM] = {0};
 
 static inline int aps_i2c_reg_read(struct aps_data *aps , int reg)
 {
-	int val;
+	/* < DTS2012012901908 zhangmin 20120129 begin */
+	int val = 0;
+	/* DTS2012012901908 zhangmin 20120129 end > */
 
 	mutex_lock(&aps->mlock);
 
@@ -308,7 +328,6 @@ aps_12d_ioctl(struct file *file, unsigned int cmd,
       		if (copy_to_user(argp, &flag, sizeof(flag)))
           		return -EFAULT;
        		 break;
-			
 		default:
 			break;
 	}
@@ -354,22 +373,44 @@ static void aps_12d_work_func(struct work_struct *work)
 	uint8_t i;
 	struct aps_data *aps = container_of(work, struct aps_data, work);
 	PROXIMITY_DEBUG("ghj aps_12d_work_func enter\n ");
-
-	if (atomic_read(&p_flag))
+	if(INTERSIL == intersil_flag)
 	{
+		APS_DBG("intersil!\n");
+	}
+	else
+	{
+		APS_DBG("everlight!\n");
+	}
+	/* < DTS2010061200617 gaohuajiang 20100610 begin */
+	if (atomic_read(&p_flag)) {
 		/* Command 1 register: IR once */
 		adjust_time = 0;
 	re_adjust:
 		/* init the range to the num last time we set */
 		if(( range_index >=0 ) && ( range_index < TOTAL_RANGE_NUM ))
 		{
+			/* deal with intersil and everlight with diferent valure */
+			if(EVERLIGHT == intersil_flag)
+			{
 			aps_i2c_reg_write(aps, APS_12D_REG_CMD2, \
 					(uint8_t)(APS_12D_IRDR_SEL_50MA << 6 | \
 						APS_12D_FREQ_SEL_DC << 4 | \
 						APS_12D_RES_SEL_12 << 2 | \
 						range_reg_value[range_index]));
-			high_threshold = high_threshold_value[range_index];
-			low_threshold = low_threshold_value[range_index];
+				high_threshold = high_threshold_value_U8661[range_index];
+				low_threshold = low_threshold_value_U8661[range_index];
+			}
+			else 
+			{
+				aps_i2c_reg_write(aps, APS_12D_REG_CMD2, \
+						(uint8_t)(APS_12D_IRDR_SEL_INTERSIL_50MA << 4 | \
+									APS_FREQ_INTERSIL_DC << 6 | \
+									APS_ADC_12 << 2 | \
+									APS_INTERSIL_SCHEME_OFF| \
+									range_reg_value[range_index]));
+				high_threshold = high_threshold_value_U8661_I[range_index];
+				low_threshold = low_threshold_value_U8661_I[range_index];	
+			}
 		}
 		else
 		{
@@ -377,7 +418,15 @@ static void aps_12d_work_func(struct work_struct *work)
 			range_index = 0;
 		}
 	er_adjust:
+		/* deal with intersil and everlight with diferent mode */
+		if(EVERLIGHT == intersil_flag)
+		{
 	    ret = aps_i2c_reg_write(aps, APS_12D_REG_CMD1, APS_12D_IR_ONCE);
+		}
+		else
+		{
+			ret = aps_i2c_reg_write(aps, APS_12D_REG_CMD1, APS_12D_IR_CONTINUOUS);
+		}
 	    msleep(45);
 	    reg_val_lsb = aps_i2c_reg_read(aps, APS_12D_DATA_LSB);
 	    reg_val_msb = aps_i2c_reg_read(aps, APS_12D_DATA_MSB);
@@ -440,8 +489,14 @@ static void aps_12d_work_func(struct work_struct *work)
 				PROXIMITY_DEBUG("proximity readjust exceed max retry times.\n");
 			}
 		}
-
+		if(EVERLIGHT == intersil_flag)
+		{
 	    ret = aps_i2c_reg_write(aps, APS_12D_REG_CMD1, APS_12D_PROXIMITY_ONCE);
+		}
+		else
+		{
+			ret = aps_i2c_reg_write(aps, APS_12D_REG_CMD1, APS_12D_PROXIMITY_CONTINUOUS);
+		}
 	    msleep(45);
 	    reg_val_lsb = aps_i2c_reg_read(aps, APS_12D_DATA_LSB);
 	    reg_val_msb = aps_i2c_reg_read(aps, APS_12D_DATA_MSB);
@@ -463,16 +518,25 @@ static void aps_12d_work_func(struct work_struct *work)
 		else {		     
 		     light_data_value = ir_count;
 		}		     
-		if ((ps_count - ir_count) > err_threshold_value[range_index] || (ps_count - ir_count) < 0 )
+		/* delete this if, because we don't want filtrate the negative value 
+		* when the value is negative , we set the status to away 
+		*/
+		if( (ps_count - ir_count) < low_threshold )
+			flag = 1;
+		else if ( (ps_count - ir_count) > err_threshold_value[range_index] )
 			flag = -1;
-	    else if( (ps_count - ir_count) > high_threshold )
-	     flag = 0;
-	    else if( (ps_count - ir_count) < low_threshold )
-	    	flag = 1;
-	    else{
-		    PROXIMITY_DEBUG("the value is in the threshold, do not report. \n");
-	    }
-        APS_DBG("the ps -ir is %d,the ps is %d,the ir is %d,the range_index is %d!\n",ps_count - ir_count,ps_count,ir_count,range_index);
+		else if( (ps_count - ir_count) > high_threshold )
+			flag = 0;
+		else{
+			PROXIMITY_DEBUG("the value is in the threshold, do not report. \n");
+		}
+		APS_DBG("the ps -ir is %d,the ps is %d,the ir is %d,the range_index is %d!\n",ps_count - ir_count,ps_count,ir_count,range_index);
+		/* < DTS2012020207173 yangbo 20120208 begin */
+		/* add printf infomation at the key point */
+		APS_DBG("approch flag is %d ,0 is close,1 is far\n",flag);
+		APS_DBG("lsb = 0x%x,msb = 0x%x\n",old_lsb,old_msb);
+		/* DTS2012020207173 yangbo 20120208 end > */
+		/* DTS2012032204580 yangbo 20120405 end > */
 		/* skip invalid event */
 		if(-1 != flag)
 		{
@@ -506,37 +570,77 @@ static void aps_12d_work_func(struct work_struct *work)
 		 */
 		if(0 != range_index)
 		{
+			/*all of the intersil's ONCE module has a big risk */
+			if(EVERLIGHT == intersil_flag)
+			{
 			aps_i2c_reg_write(aps, APS_12D_REG_CMD2, \
 					(uint8_t)(APS_12D_IRDR_SEL_50MA << 6 | \
 						APS_12D_FREQ_SEL_DC << 4 | \
 						APS_12D_RES_SEL_12 << 2 | \
+							APS_12D_RANGE_SEL_ALS_1000));
+			}
+			else 
+			{
+				aps_i2c_reg_write(aps, APS_12D_REG_CMD2, \
+						(uint8_t)(APS_12D_IRDR_SEL_INTERSIL_50MA << 4 | \
+						APS_FREQ_INTERSIL_DC << 6 | \
+						APS_ADC_12 << 2 | \
+						APS_INTERSIL_SCHEME_OFF | \
 						APS_12D_RANGE_SEL_ALS_1000));
+			}
 		}
 	}
 
 	if (atomic_read(&l_flag)) 
 		{
-		ret = aps_i2c_reg_write(aps, APS_12D_REG_CMD1, APS_12D_ALS_ONCE);
+		/* deal with intersil and everlight with diferent mode */
+		if(EVERLIGHT == intersil_flag)
+		{
+		    ret = aps_i2c_reg_write(aps, APS_12D_REG_CMD1, APS_12D_ALS_ONCE);
+		}
+		else
+		{
+			ret = aps_i2c_reg_write(aps, APS_12D_REG_CMD1, APS_12D_ALS_CONTINUOUS);
+		}
 		msleep(45);
 		reg_val_lsb = aps_i2c_reg_read(aps, APS_12D_DATA_LSB);
 		reg_val_msb = aps_i2c_reg_read(aps, APS_12D_DATA_MSB);
 		als_count = ((uint16_t)reg_val_msb << 8) + (uint16_t)reg_val_lsb;
-		PROXIMITY_DEBUG("ALS once lsb=%d; msb=%d; als_count=%d \n", reg_val_lsb, reg_val_msb, als_count);
-
+		/* add printf infomation at the key point */
+		APS_DBG("ALS once lsb=%d; msb=%d; als_count=%d \n", reg_val_lsb, reg_val_msb, als_count);
 		if (als_count > 0xFFF){
 			PROXIMITY_DEBUG("get wrong als value, als_count=%d \n", als_count);
 			als_count = 0xFFF;
 		}
 
 		als_level = LSENSOR_MAX_LEVEL - 1;
-		for (i = 0; i < ARRAY_SIZE(lsensor_adc_table); i++){
-			if (als_count < lsensor_adc_table[i]){
+		/* deal with intersil and everlight lsensor */
+		for (i = 0; i < ARRAY_SIZE(lsensor_adc_U8661_table); i++)
+		{
+			if(EVERLIGHT == intersil_flag)
+			{
+				if (als_count <= lsensor_adc_U8661_table[i])
+				{
 				als_level = i;
 				break;
+				}
+			}
+			else
+			{
+				if (als_count <= lsensor_adc_U8661_Inter_table[i])
+				{
+					als_level = i;
+					break;
+				}
 			}
 		}
-		PROXIMITY_DEBUG("report adc level=%d \n", als_level);
-		
+		/* if it's intersil,it shoule be a power_down,because Power-up and Power Supply Considerations is not correct */
+		APS_DBG("report adc level=%d \n", als_level);
+		if(INTERSIL == intersil_flag)
+		{
+			ret = aps_i2c_reg_write(aps, APS_12D_REG_CMD1, APS_12D_POWER_DOWN);
+			msleep(10);				
+		}
 		if(aps_first_read)
 		{
 			/* report a invalid key first */
@@ -547,6 +651,7 @@ static void aps_12d_work_func(struct work_struct *work)
 		}
 		else
 		{
+			APS_DBG("report lux value=%d \n", lsensor_adc_table[als_level]);
 			input_report_abs(aps->input_dev, ABS_LIGHT, als_level);
 			input_sync(aps->input_dev);
 		}
@@ -568,35 +673,42 @@ static int aps_12d_probe(
 	
 	struct i2c_client *client, const struct i2c_device_id *id)
 {	
+	/* define and initialization the value */
+	int value_lsb = 0;
+	int value_msb = 0;   
 	int ret;
 	struct aps_data *aps;
 	/*the aps_12d sensors ispower on*/
-    /* updated for regulator interface */
-	struct regulator *vreg_gp4=NULL;
-	int rc;
+	/* <BU5D07679 zhangtao 20100413 begin */
+/* < DTS2012012901908 zhangmin 20120129 begin */
 	int i;
+#ifdef CONFIG_ARCH_MSM7X30
+	struct vreg *vreg_gp4=NULL;
+	int rc;
+	/*delete this line,27A don't have to match the power supply*/
 	
-    vreg_gp4 = regulator_get(NULL, VREG_GP4_NAME);
+    vreg_gp4 = vreg_get(NULL, VREG_GP4_NAME);
     if (IS_ERR(vreg_gp4)) 
     {
 	    pr_err("%s:gp4 power init get failed\n", __func__);
     }
 
     /* set gp4 voltage as 2700mV for all */
-    rc = regulator_set_voltage(vreg_gp4,VREG_GP4_VOLTAGE_VALUE_2700,VREG_GP4_VOLTAGE_VALUE_2700);
+    rc = vreg_set_level(vreg_gp4,VREG_GP4_VOLTAGE_VALUE_2700);
     
 	if (rc) {
-		PROXIMITY_DEBUG("%s: vreg_gp4  vreg_set_level failed \n", __func__);
+        pr_err("%s: vreg_gp4 vreg_set_level failed (%d)\n", __func__, rc);
 		return rc;
 	}
-	rc = regulator_enable(vreg_gp4);
+    rc = vreg_enable(vreg_gp4);
 	if (rc) {
-		pr_err("%s: vreg_gp4    vreg_enable failed \n", __func__);
+        pr_err("%s: vreg_gp4 vreg_enable failed (%d)\n", __func__, rc);
 		return rc;
 	}
+#endif
 	mdelay(5);
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
-		PROXIMITY_DEBUG(KERN_ERR "aps_12d_probe: need I2C_FUNC_I2C\n");
+        printk(KERN_ERR "aps_12d_probe: need I2C_FUNC_I2C\n");
 		ret = -ENODEV;
 		goto err_check_functionality_failed;
 	}
@@ -623,40 +735,101 @@ static int aps_12d_probe(
 	i2c_set_clientdata(client, aps);
 
 	PROXIMITY_DEBUG(KERN_INFO "ghj aps_12d_probe send command 2\n ");
+	/*power_down to avoid the iic write error */
+	if(machine_is_msm8255_u8800_pro())
+	{
+		aps_i2c_reg_write(aps, APS_12D_REG_CMD1, APS_12D_POWER_DOWN);
+	}
 	
 	/* Command 2 register: 25mA,DC,12bit,Range1 */
+	aps_i2c_reg_write(aps, APS_12D_REG_CMD1, APS_12D_POWER_DOWN);
 
+	value_lsb = aps_i2c_reg_read(aps, APS_INT_HT_LSB);
+	value_msb = aps_i2c_reg_read(aps, APS_INT_HT_MSB);
+	old_lsb = value_lsb;
+	old_msb = value_msb;
+	APS_DBG("value_lsb=%d,value_msb=%d\n",value_lsb,value_msb);
 	/* make the rang smaller can make the ir changge bigger */
-	
-	ret=-1;
-	for(i=0;i<10 && ret!=0;i++) {
-		ret = aps_i2c_reg_write(aps, APS_12D_REG_CMD2, \
-	                         (uint8_t)(APS_12D_IRDR_SEL_50MA << 6 | \
-	                                   APS_12D_FREQ_SEL_DC << 4 | \
-	                                   APS_12D_RES_SEL_12 << 2 | \
-	                                   APS_12D_RANGE_SEL_ALS_1000));
-		printk("aps_12d_probe try %d\n",i);
-		mdelay(5);
-	}
-	if(ret < 0)
+	if((0x00 == value_lsb) && (0x00 == value_msb))
 	{
+		intersil_flag = EVERLIGHT;
+	}
+	else
+	{
+		intersil_flag = INTERSIL;
+	}
+	
+	/* write reg value for the two device */
+	if(EVERLIGHT == intersil_flag)
+	{
+		ret = aps_i2c_reg_write(aps, APS_12D_REG_CMD2, \
+							(uint8_t)(APS_12D_IRDR_SEL_50MA << 6 | \
+										APS_12D_FREQ_SEL_DC << 4 | \
+										APS_12D_RES_SEL_12 << 2 | \
+										APS_12D_RANGE_SEL_ALS_1000));
+	}
+	else 
+	{
+		/*because Power-up and Power Supply Considerations is not good enough for intersil's datasheet,so avoid it via software*/
+		ret = aps_i2c_reg_write(aps, APS_TEST, APS_12D_POWER_DOWN);
+		if (ret < 0) 
+		{
+			PROXIMITY_DEBUG("APS_TEST error!\n");
+		}
+		msleep(10);
+		ret = aps_i2c_reg_write(aps, APS_12D_REG_CMD1, APS_12D_POWER_DOWN);
+		if (ret < 0) 
+		{
+			PROXIMITY_DEBUG("APS_12D_POWER_DOWN error!\n");
+		}
+		msleep(10);
+		ret = aps_i2c_reg_write(aps, APS_12D_REG_CMD2, \
+								(uint8_t)(APS_12D_IRDR_SEL_INTERSIL_50MA << 4 | \
+										APS_FREQ_INTERSIL_DC << 6 | \
+										APS_ADC_12 << 2 | \
+										APS_INTERSIL_SCHEME_OFF| \
+										APS_12D_RANGE_SEL_ALS_1000));
+	}
+	err_threshold_value[1] = 50;
+	if (ret < 0) {
 		goto err_detect_failed;
 	}
 	range_index = 0;
+    #ifdef CONFIG_HUAWEI_HW_DEV_DCT
+    /* detect current device successful, set the flag as present */
+    set_hw_dev_flag(DEV_I2C_APS);
+    #endif
 
 	for(i = 0; i < TOTAL_RANGE_NUM; i++)
 	{
 		/* NOTE: do NOT use the last one */
-		up_range_value[i] = MAX_ADC_OUTPUT - high_threshold_value[i] - RANGE_FIX; 
+		/* get the down_range_value */
+		if(EVERLIGHT == intersil_flag)
+		{
+			up_range_value[i] = MAX_ADC_OUTPUT - high_threshold_value_U8661[i] - RANGE_FIX + 500; 
+		}
+		else
+		{
+			up_range_value[i] = MAX_ADC_OUTPUT - high_threshold_value_U8661_I[i] - RANGE_FIX + 500; 
+		}
 	}
 
 	down_range_value[0] = 0;
 	for(i = 1; i < TOTAL_RANGE_NUM; i++)
 	{
 		/* NOTE: do not use the first one */
-		down_range_value[i] = (MAX_ADC_OUTPUT - high_threshold_value[i-1] - (MAX_ADC_OUTPUT / ADJUST_GATE)) / 4; 
+		/* get the down_range_value */
+		if(EVERLIGHT == intersil_flag)
+		{
+			down_range_value[i] = (MAX_ADC_OUTPUT - high_threshold_value_U8661[i-1] - (MAX_ADC_OUTPUT / ADJUST_GATE)) / 4 - 650;
+		}
+		else
+		{
+			down_range_value[i] = (MAX_ADC_OUTPUT - high_threshold_value_U8661_I[i-1] - (MAX_ADC_OUTPUT / ADJUST_GATE)) / 4 - 650;
+		}
 	}
-
+	/*zhangtao 20101230 make the changge to config the sensor begin */
+	/* DTS2012050900892 yangbo 20120509 end > */
 	/*we don't use the input device sensors again */
 	aps->input_dev = input_allocate_device();
 	if (aps->input_dev == NULL) {
@@ -719,11 +892,6 @@ static int aps_12d_probe(
 	
 	this_aps_data =aps;
 
-    #ifdef CONFIG_HUAWEI_HW_DEV_DCT
-    /* detect current device successful, set the flag as present */
-    set_hw_dev_flag(DEV_I2C_APS);
-    #endif
-
 	printk(KERN_INFO "aps_12d_probe: Start Proximity Sensor APS-12D\n");
 
 	return 0;
@@ -740,13 +908,15 @@ err_detect_failed:
 	kfree(aps);
 err_alloc_data_failed:
 err_check_functionality_failed:
+#ifdef CONFIG_ARCH_MSM7X30
 	if(NULL != vreg_gp4)
 	{
         /* can't use the flag ret here, it will change the return value of probe function */
         /* updated for regulator interface */
-        regulator_disable(vreg_gp4);
+        vreg_disable(vreg_gp4);
         /* delete a line */
 	}
+#endif
 	return ret;
   
 }
@@ -793,20 +963,41 @@ static int aps_12d_suspend(struct i2c_client *client, pm_message_t mesg)
 static int aps_12d_resume(struct i2c_client *client)
 {
 	int ret;
+	int i;
 	struct aps_data *aps = i2c_get_clientdata(client);
 
 	PROXIMITY_DEBUG("ghj aps_12d_resume enter\n ");
 
 	/* Command 2 register: 25mA,DC,12bit,Range2 */
-	/* make the rang smaller can make the ir changge bigger */
-	ret = aps_i2c_reg_write(aps, APS_12D_REG_CMD2, \
-	                         (uint8_t)(APS_12D_IRDR_SEL_50MA << 6 | \
-	                                   APS_12D_FREQ_SEL_DC << 4 | \
-	                                   APS_12D_RES_SEL_12 << 2 | \
-	                                   APS_12D_RANGE_SEL_ALS_1000));
-
-	/* enable aps_first_read */
-/* the flag is not used */
+	/* write reg value for the two device */
+	if(EVERLIGHT == intersil_flag)
+	{
+	    ret=-1;
+    	for(i=0;i<10 && ret!=0;i++) {
+		ret = aps_i2c_reg_write(aps, APS_12D_REG_CMD2, \
+					(uint8_t)(APS_12D_IRDR_SEL_50MA << 6 | \
+										APS_12D_FREQ_SEL_DC << 4 | \
+										APS_12D_RES_SEL_12 << 2 | \
+										APS_12D_RANGE_SEL_ALS_1000));
+	    printk("aps_12d_probe try %d\n",i);
+		mdelay(5);
+		}
+	}
+	else 
+	{
+	    ret=-1;
+    	for(i=0;i<10 && ret!=0;i++) {
+		ret = aps_i2c_reg_write(aps, APS_12D_REG_CMD2, \
+					(uint8_t)(APS_12D_IRDR_SEL_INTERSIL_50MA << 4 | \
+										APS_FREQ_INTERSIL_DC << 6 | \
+										APS_ADC_12 << 2 | \
+										APS_INTERSIL_SCHEME_OFF| \
+										APS_12D_RANGE_SEL_ALS_1000));
+	    printk("aps_12d_probe try %d\n",i);
+		mdelay(5);
+		}
+	}
+	/* DTS2012050900892 yangbo 20120509 end > */
 	hrtimer_start(&aps->timer, ktime_set(1, 0), HRTIMER_MODE_REL);
 
 	return 0;
