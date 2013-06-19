@@ -77,6 +77,7 @@ END OF ALTERNATE GPL TERMS
 #include <linux/uaccess.h>
 #include <linux/miscdevice.h>
 #include <media/msm_camera.h>
+#include <asm/mach-types.h>
 #include <mach/gpio.h>
 #include <mach/camera.h>
 #include "s5k4e1gx_p.h"
@@ -2341,7 +2342,9 @@ static struct platform_driver msm_camera_driver =
 
 static int __init s5k4e1gx_p_init(void)
 {
-    return platform_driver_register(&msm_camera_driver);
+    if (machine_is_msm8255_u8800_pro()) {
+        return platform_driver_register(&msm_camera_driver);
+    }
 }
 
 module_init(s5k4e1gx_p_init);
