@@ -28,8 +28,7 @@
 #include <linux/earlysuspend.h>
 #include <mach/gpio.h>
 #include <mach/vreg.h>
-/* updated for regulator interface */
-#include <linux/regulator/consumer.h>
+
 #ifdef CONFIG_HUAWEI_HW_DEV_DCT
 #include <linux/hw_dev_dec.h>
 #endif
@@ -146,7 +145,7 @@ static extra_key_region   touch_extra_key_region =
 /* the value 24 (the gap between touch region and key region)maybe need to modify*/
       {(TS_X_MAX*1/8),   (TS_Y_MAX-TS_KEY_Y_MAX/2+26), TS_X_MAX/10, TS_KEY_Y_MAX/3, KEY_BACK},  /*back key */
        {(TS_X_MAX*3/8),   (TS_Y_MAX-TS_KEY_Y_MAX/2+26), TS_X_MAX/10, TS_KEY_Y_MAX/3, KEY_MENU},  /* menu key */
-       {(TS_X_MAX*5/8),   (TS_Y_MAX-TS_KEY_Y_MAX/2+26), TS_X_MAX/10, TS_KEY_Y_MAX/3, KEY_HOME},  /* KEY_F2,KEY_HOME home key */
+       {(TS_X_MAX*5/8),   (TS_Y_MAX-TS_KEY_Y_MAX/2+26), TS_X_MAX/10, TS_KEY_Y_MAX/3, KEY_HOMEPAGE},  /* KEY_F2,KEY_HOME home key */
        {(TS_X_MAX*7/8),   (TS_Y_MAX-TS_KEY_Y_MAX/2+26), TS_X_MAX/10, TS_KEY_Y_MAX/3, KEY_SEARCH},  /* Search key */
     },
 };
@@ -2302,7 +2301,7 @@ static void atmel_ts_work_func(struct work_struct *work)
 						if (ts->test > 0) 
 							key_pressed = KEY_BRL_DOT3;
 						else
-							key_pressed = KEY_HOME;
+							key_pressed = KEY_HOMEPAGE;
 					 	touch_input_report_key(ts, key_pressed, 1);
 						input_sync(ts->input_dev);
 					}
@@ -2370,8 +2369,7 @@ static int atmel_ts_probe(
 	struct atmel_ts_data *ts;
 	int ret = 0;
 	int i;
-    /* updated for regulator interface */
-    struct regulator *v_gp4 = NULL;
+    struct vreg *v_gp4 = NULL;
     int gpio_config;
 	struct object_t *object_table = NULL;
 	u32 current_address; //the address is normal erveryone can use it
@@ -2385,15 +2383,15 @@ static int atmel_ts_probe(
 	g_client = client;
 	
     /* power on touchscreen removed form board-hw7x30.c */   
-    v_gp4 = regulator_get(NULL,"gp4");   
+    v_gp4 = vreg_get(NULL,"gp4");   
     ret = IS_ERR(v_gp4); 
     if(ret)         
         goto err_power_on_failed;    
     /* set gp4 voltage as 2700mV for all */
-    ret = regulator_set_voltage(v_gp4,VREG_GP4_VOLTAGE_VALUE_2700,VREG_GP4_VOLTAGE_VALUE_2700);
+    ret = vreg_set_level(v_gp4,VREG_GP4_VOLTAGE_VALUE_2700);
     if (ret)        
         goto err_power_on_failed;    
-    ret = regulator_enable(v_gp4);
+    ret = vreg_enable(v_gp4);
     if (ret)       
         goto err_power_on_failed;
     mdelay(50);
@@ -2716,8 +2714,7 @@ err_slave_dectet:
    if(NULL != v_gp4)
 	{
         /* can't use the flag ret here, it will change the return value of probe function */
-        /* updated for regulator interface */
-        regulator_disable(v_gp4);
+        vreg_disable(v_gp4);
         /* delete a line */
 	}
 err_power_on_failed:

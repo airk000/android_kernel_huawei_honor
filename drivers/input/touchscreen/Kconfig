@@ -817,6 +817,28 @@ config TOUCHSCREEN_CYTTSP_I2C
 
          To compile this driver as a module, choose M here: the
          module will be called cyttsp-i2c.
+config HUAWEI_FEATURE_RMI_TOUCH
+       tristate "Synaptics RMI4 based touchscreens"
+       depends on I2C
+       default n
+       help
+         Say Y here if you have a Synaptics RMI4 based touchscreen.
+         Synaptics RMI4 is a multi-touch screen
+
+         If unsure, say N.
+
+         To compile this driver as a module, choose M here
+config  HUAWEI_MELFAS_TOUCHSCREEN
+	depends on I2C
+	default n
+	tristate "melfas_i2c_ts"
+	help
+          Say Y here if you have a melfas_i2c_ts.
+
+          If unsure, say N.
+
+          To compile this driver as a module, choose M here: the
+          module will be called melfas_i2c_ts.
 endif
 config HUAWEI_TOUCHSCREEN_EXTRA_KEY
 	default n
@@ -840,16 +862,3 @@ config  HUAWEI_FEATURE_AT42QT_TS
 
           To compile this driver as a module, choose M here: the
           module will be called AT42QT_TS_atmel.
-
-config  HUAWEI_FEATURE_RMI_TOUCH
-	depends on HUAWEI_KERNEL
-	default n
-	tristate "synaptics_i2c_rmi_1564"
-	select SERIO
-	help
-         Say Y here if you have a synaptics_i2c_rmi_1564.
-
-          If unsure, say N.
-
-          To compile this driver as a module, choose M here: the
-          module will be called synaptics_i2c_rmi_1564.

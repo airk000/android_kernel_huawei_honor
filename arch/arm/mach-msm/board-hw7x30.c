@@ -256,6 +256,9 @@ static unsigned int sub_board_id = 0;
 #ifdef CONFIG_HUAWEI_POWER_DOWN_CHARGE
 static unsigned int charge_flag = 0;
 #endif
+#define CAMERA_NAME_LEN 128
+char back_camera_name[CAMERA_NAME_LEN]  = {0};
+char front_camera_name[CAMERA_NAME_LEN] = {0};
 struct pm8xxx_gpio_init_info {
 	unsigned			gpio;
 	struct pm_gpio			config;
@@ -1520,7 +1523,7 @@ static struct msm_camera_sensor_info msm_camera_sensor_s5k5ca_data = {
 	.sensor_name	= (char*)back_camera_name,
 	/* DTS2012031904303 zhouqiwei 20130319 end > */
 	.sensor_reset   = 88,
-	.vreg_num     = ARRAY_SIZE(sensor_vreg_array)
+	//.vreg_num     = ARRAY_SIZE(sensor_vreg_array)
 	.vreg_enable_func = msm_camera_vreg_config,
 	.vreg_disable_func = msm_camera_vreg_config,
 	.slave_sensor = 0,
@@ -1531,7 +1534,7 @@ static struct msm_camera_sensor_info msm_camera_sensor_s5k5ca_data = {
 	.resource       = msm_camera_resources,
 	.flash_data     = &flash_s5k5ca,
 	.num_resources  = ARRAY_SIZE(msm_camera_resources),
-	.set_s5k5ca_is_on = set_s5k5ca_is_on,
+	//.set_s5k5ca_is_on = set_s5k5ca_is_on,
 	.csi_if         = 1
     //    .master_init_control_slave = sensor_master_init_control_slave,
 };
@@ -1856,9 +1859,6 @@ static struct msm_camera_sensor_flash_data flash_ov5647_sunny = {
 static struct msm_camera_sensor_info msm_camera_sensor_ov5647_sunny_data = {
 	.sensor_name    = "ov5647_sunny",
 	.sensor_reset   = 88,
-    /* updated for regulator interface */
-	/* .sensor_vreg  = sensor_vreg_array, */
-	.vreg_num     = ARRAY_SIZE(sensor_vreg_array),
 	.vreg_enable_func = msm_camera_vreg_config,
 	.vreg_disable_func = msm_camera_vreg_config,
 	.slave_sensor = 0,
@@ -6982,6 +6982,23 @@ static struct msm_gpio sdc1_cfg_data[] = {
 	{GPIO_CFG(43, 1, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_UP, GPIO_CFG_8MA), "sdc1_dat_0"},
 };
 
+#ifdef CONFIG_HUAWEI_KERNEL
+static struct msm_gpio sdc2_cfg_data[] = {
+	{GPIO_CFG(64, 1, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_16MA), "sdc2_clk"},
+	{GPIO_CFG(65, 1, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_8MA), "sdc2_cmd"},
+	{GPIO_CFG(66, 1, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_8MA), "sdc2_dat_3"},
+	{GPIO_CFG(67, 1, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_8MA), "sdc2_dat_2"},
+	{GPIO_CFG(68, 1, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_8MA), "sdc2_dat_1"},
+	{GPIO_CFG(69, 1, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_8MA), "sdc2_dat_0"},
+
+#ifdef CONFIG_MMC_MSM_SDC2_8_BIT_SUPPORT
+	{GPIO_CFG(115, 1, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_8MA), "sdc2_dat_4"},
+	{GPIO_CFG(114, 1, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_8MA), "sdc2_dat_5"},
+	{GPIO_CFG(113, 1, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_8MA), "sdc2_dat_6"},
+	{GPIO_CFG(112, 1, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_8MA), "sdc2_dat_7"},
+#endif
+};
+#else
 static struct msm_gpio sdc2_cfg_data[] = {
 	{GPIO_CFG(64, 1, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_16MA), "sdc2_clk"},
 	{GPIO_CFG(65, 1, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_UP, GPIO_CFG_8MA), "sdc2_cmd"},
@@ -6997,6 +7014,7 @@ static struct msm_gpio sdc2_cfg_data[] = {
 	{GPIO_CFG(112, 1, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_UP, GPIO_CFG_8MA), "sdc2_dat_7"},
 #endif
 };
+#endif
 
 static struct msm_gpio sdc3_cfg_data[] = {
 	{GPIO_CFG(110, 1, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_16MA), "sdc3_clk"},
@@ -7022,6 +7040,16 @@ static struct msm_gpio sdc3_sleep_cfg_data[] = {
 			"sdc3_dat_0"},
 };
 
+#ifdef CONFIG_HUAWEI_KERNEL
+static struct msm_gpio sdc4_cfg_data[] = {
+	{GPIO_CFG(58, 1, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_16MA), "sdc4_clk"},
+	{GPIO_CFG(59, 1, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_8MA), "sdc4_cmd"},
+	{GPIO_CFG(60, 1, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_8MA), "sdc4_dat_3"},
+	{GPIO_CFG(61, 1, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_8MA), "sdc4_dat_2"},
+	{GPIO_CFG(62, 1, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_8MA), "sdc4_dat_1"},
+	{GPIO_CFG(63, 1, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_8MA), "sdc4_dat_0"},
+};
+#else
 static struct msm_gpio sdc4_cfg_data[] = {
 	{GPIO_CFG(58, 1, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_16MA), "sdc4_clk"},
 	{GPIO_CFG(59, 1, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_UP, GPIO_CFG_8MA), "sdc4_cmd"},
@@ -7030,6 +7058,7 @@ static struct msm_gpio sdc4_cfg_data[] = {
 	{GPIO_CFG(62, 1, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_UP, GPIO_CFG_8MA), "sdc4_dat_1"},
 	{GPIO_CFG(63, 1, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_UP, GPIO_CFG_8MA), "sdc4_dat_0"},
 };
+#endif
 
 static struct sdcc_gpio sdcc_cfg_data[] = {
 	{

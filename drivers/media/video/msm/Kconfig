@@ -45,6 +45,11 @@ config HUAWEI_SENSOR_HI701
 	default n
 	---help---
 	  Hynix 30w YUV Sensor
+config HUAWEI_CAMERA_SENSOR_S5K5CA
+	tristate "s5k5ca is used"
+	default n
+	help
+	if Y ,select HUAWEI_CAMERA_SENSOR_S5K5CA
 
 config HUAWEI_SENSOR_OV7690
 	bool "Sensor ov7690 (YUV 30K)"

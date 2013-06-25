@@ -1080,7 +1080,7 @@ static int melfas_ts_probe(struct i2c_client *client, const struct i2c_device_id
         {
             lcd_x = tp_type_self_check.lcd_x;
             lcd_y = tp_type_self_check.lcd_y;
-            lcd_all = tp_type_self_check.lcd_all;
+            lcd_all = tp_type_self_check.jisuan;
         }
     }
 	/*< DTS2011101704491 fengwei 20111018 begin */
